@@ -1,0 +1,17 @@
+<package>
+  <description brief="ros_logging">
+
+Library for logging various info about robot execution to a database
+
+  </description>
+  <author>Bhaskara Marthi</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/ros_logging</url>
+  <depend package="mongodb"/>
+  <depend package="rosgraph_msgs"/>
+  <depend package="roscpp"/>
+
+</package>
+
+
