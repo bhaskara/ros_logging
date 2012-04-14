@@ -1,0 +1,3 @@
+Library containing tools to record various ROS-related information to a MongoDB instance.
+- rosout_logger listens to rosout messages and writes them to the db
+- grep_log allows querying the stored rosout messages
