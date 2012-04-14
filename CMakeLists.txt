@@ -21,6 +21,9 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 #uncomment if you have defined services
 #rosbuild_gensrv()
 
+set(ALL_WARNINGS -Wall -Werror -Wextra -Wno-unused-but-set-variable)
+
+
 #common commands for building c++ executables and libraries
 #rosbuild_add_library(${PROJECT_NAME} src/example.cpp)
 #target_link_libraries(${PROJECT_NAME} another_library)
@@ -28,4 +31,19 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 #rosbuild_link_boost(${PROJECT_NAME} thread)
 #rosbuild_add_executable(example examples/example.cpp)
 #target_link_libraries(example ${PROJECT_NAME})
-rosbuild_add_library(ros_logging src/mongo_logger.cpp)
+rosbuild_add_library(ros_logging
+  src/mongo_logger.cpp
+  src/query_results.cpp)
+
+rosbuild_add_executable(rosout_logger src/rosout_logger_node.cpp)
+target_link_libraries(rosout_logger ros_logging)
+
+rosbuild_add_executable(grep_log src/grep_log.cpp)
+target_link_libraries(grep_log ros_logging)
+rosbuild_link_boost(grep_log program_options)
+
+set(TARGETS ros_logging rosout_logger grep_log)
+
+foreach(target ${TARGETS})
+  rosbuild_add_compile_flags(${target} ${ALL_WARNINGS})
+endforeach(target)

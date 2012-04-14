@@ -39,12 +39,13 @@
 #ifndef ROS_LOGGING_MONGO_LOGGER_H
 #define ROS_LOGGING_MONGO_LOGGER_H
 
-#include <rosgraph_msgs/Log.h>
-#include <mongo/client/dbclient.h>
+#include "log_item.h"
+#include "query_results.h"
 #include <boost/shared_ptr.hpp>
 
 namespace ros_logging
 {
+
 
 class MongoLogger
 {
@@ -62,7 +63,26 @@ public:
                const unsigned port=27017);
 
   /// Append this message to the log
-  void write (const rosgraph_msgs::Log& msg, const std::string& node_name);
+  /// 
+  /// \param receipt_time The wall clock time at which the message was received.
+  void write (const rosgraph_msgs::Log& m,
+              const ros::WallTime& receipt_time);
+  
+  /// Used to specify criteria for filtering messages
+  /// The time fields are ignored if they're equal to 0, and the strings are
+  /// ignored if they're empty.
+  struct MessageCriteria
+  {
+    ros::WallTime min_time;
+    ros::WallTime max_time;
+    std::string message_regex;
+    std::string node_name_regex;
+  };
+  
+  /// Returns messages matching criteria.
+  /// The returned value is a pair of iterators and satisfies the single-pass
+  /// range concept, so can be used in BOOST_FOREACH, etc.
+  ResultRange filterMessages (const MessageCriteria& c);
   
 private:
   
@@ -70,7 +90,15 @@ private:
   int getNodeId (const std::string& name);
 
   /// Return crc given message text.  Add to db if unseen.
+  /// The node id is included to reduce the chance of collisions, so a 
+  /// collision can only happen between two messages from the same node.
   int getCrc (const std::string& text, int node_id);
+  
+  /// Return vector of ids of nodes whose names match the given regex
+  std::vector<int> getMatchingNodes (const std::string& regex);
+  
+  /// Return vector of crcs of messages matching the given regex
+  std::vector<int> getMatchingMessages (const std::string& regex);
 
   // The connection to the Mongo server
   boost::shared_ptr<mongo::DBClientConnection> conn_;

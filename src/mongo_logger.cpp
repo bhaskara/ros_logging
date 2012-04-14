@@ -39,16 +39,20 @@
 #include <ros_logging/mongo_logger.h>
 #include <boost/format.hpp>
 #include <boost/crc.hpp>
+#include <boost/foreach.hpp>
 
 namespace ros_logging
 {
 
 using std::string;
+using std::cerr;
+using std::endl;
 using rosgraph_msgs::Log;
 using mongo::BSONObj;
+using mongo::BSONObjBuilder;
+using mongo::BSONArrayBuilder;
 
 typedef boost::shared_ptr<mongo::DBClientConnection> ConnPtr;
-
 
 // Internal function to connect to the mongo instance
 // Can throw a Mongo exception if connection fails
@@ -68,6 +72,14 @@ MongoLogger::MongoLogger (const string& db, const string& host,
   message_coll_(db+".messages"), node_name_coll_(db+".nodes"),
   log_coll_(db+".log_items")
 {
+  // Make sure various indices are set up
+  conn_->ensureIndex(message_coll_, BSON("crc" << 1));
+  conn_->ensureIndex(message_coll_, BSON("node_id" << 1));
+  conn_->ensureIndex(log_coll_, BSON("receipt_time" << 1));
+  conn_->ensureIndex(log_coll_, BSON("crc" << 1));
+  conn_->ensureIndex(log_coll_, BSON("node" << 1));
+  conn_->ensureIndex(node_name_coll_, BSON("name" << 1));
+  conn_->ensureIndex(node_name_coll_, BSON("id" << 1));
 }
 
 int computeCrc (const string& text)
@@ -80,8 +92,8 @@ int computeCrc (const string& text)
 int MongoLogger::getCrc (const string& text, const int node_id)
 {
   const int crc = computeCrc(text);
-  auto_ptr<mongo::DBClientCursor> cursor = conn_->query(message_coll_, 
-                             QUERY("crc" << crc << "node_id" << node_id));
+  CursorAutoPtr cursor = conn_->query(message_coll_, 
+                                  QUERY("crc" << crc << "node_id" << node_id));
   if (!cursor->more())
   {
     // We haven't seen this message before, so add it
@@ -93,7 +105,7 @@ int MongoLogger::getCrc (const string& text, const int node_id)
 
 int MongoLogger::getNodeId (const string& name)
 {
-  auto_ptr<mongo::DBClientCursor> cursor = 
+  CursorAutoPtr cursor = 
     conn_->query(node_name_coll_, QUERY("name" << name));
   if (!cursor->more())
   {
@@ -106,18 +118,92 @@ int MongoLogger::getNodeId (const string& name)
   else
   {
     BSONObj item = cursor->next();
+    ROS_ASSERT(item.hasField("id"));
     return item.getIntField("id");
   }
 }
 
-void MongoLogger::write (const Log& msg, const string& node_name)
+vector<int> MongoLogger::getMatchingNodes (const string& regex)
 {
-  const int node_id = getNodeId(node_name);
-  const int id = getCrc(msg.msg, node_id);
-  BSONObj item = BSON("crc" << id << "node" << node_id << "stamp" 
-                      << msg.header.stamp.toSec());
+  BSONObj query = BSONObjBuilder().appendRegex("name", regex).obj();
+  CursorAutoPtr cursor = conn_->query(node_name_coll_, query);
+  vector<int> nodes;
+  while (cursor->more())
+  {
+    BSONObj item = cursor->next();
+    ROS_ASSERT(item.hasField("id"));
+    nodes.push_back(item.getIntField("id"));
+  }
+  return nodes;
+}
+
+vector<int> MongoLogger::getMatchingMessages (const string& regex)
+{
+  BSONObj query = BSONObjBuilder().appendRegex("text", regex).obj();
+  CursorAutoPtr cursor = conn_->query(message_coll_, query);
+  vector<int> messages;
+  while (cursor->more())
+  {
+    BSONObj item = cursor->next();
+    ROS_ASSERT(item.hasField("crc"));
+    messages.push_back(item.getIntField("crc"));
+  }
+  return messages;
+}
+
+void MongoLogger::write (const Log& l,
+                         const ros::WallTime& receipt_time)
+{
+  const int node_id = getNodeId(l.name);
+  const int id = getCrc(l.msg, node_id);
+  BSONObj item = BSON("crc" << id << "node" << node_id << "receipt_time" 
+                      << receipt_time.toSec());
   conn_->insert(log_coll_, item);
 }
 
+ResultRange MongoLogger::filterMessages (const MessageCriteria& c)
+{
+  BSONObjBuilder builder;
+  if (!c.message_regex.empty())
+  {
+    BSONArrayBuilder id_builder;
+    vector<int> ids = getMatchingMessages(c.message_regex);
+    BOOST_FOREACH (const int id, ids)
+      id_builder.append(id);
+    BSONObjBuilder sub;
+    sub.append("$in", id_builder.arr());
+    builder.append("crc", sub.obj());
+  }
+  if (!c.node_name_regex.empty())
+  {
+    BSONArrayBuilder id_builder;
+    vector<int> ids = getMatchingNodes(c.node_name_regex);
+    BOOST_FOREACH (const int id, ids)
+      id_builder.append(id);
+    BSONObjBuilder sub;
+    sub.append("$in", id_builder.arr());
+    builder.append("node", sub.obj());
+  }
+  
+  const double max_time = c.max_time.toSec();
+  if (max_time > 0.0)
+  {
+    BSONObjBuilder sub;
+    sub.append("$lte", max_time);
+    builder.append("receipt_time", sub.obj());
+  }
+
+  const double min_time = c.min_time.toSec();
+  if (min_time > 0.0)
+  {
+    BSONObjBuilder sub;
+    sub.append("$gte", min_time);
+    builder.append("receipt_time", sub.obj());
+  }
+  BSONObj query = builder.obj();
+  cerr << "Final query is: " << query.toString() << endl;
+  ResultIterator iter(conn_, message_coll_, node_name_coll_, log_coll_, query);
+  return ResultRange(iter, ResultIterator());
+}
 
 } // namespace
