@@ -201,7 +201,12 @@ ResultRange MongoLogger::filterMessages (const MessageCriteria& c)
     sub.append("$gte", min_time);
     builder.append("receipt_time", sub.obj());
   }
-  BSONObj query = builder.obj();
+  BSONObjBuilder sub;
+  sub.append("receipt_time", 1);
+  BSONObjBuilder sorted_builder;
+  sorted_builder.append("query", builder.obj());
+  sorted_builder.append("orderby", sub.obj());
+  BSONObj query = sorted_builder.obj();
   cerr << "Final query is: " << query.toString() << endl;
   ResultIterator iter(conn_, message_coll_, node_name_coll_, log_coll_, query);
   return ResultRange(iter, ResultIterator());
