@@ -74,10 +74,21 @@ void Node::logCB (const Log& l)
 
 } // namespace
 
+using std::cerr;
+
 int main (int argc, char** argv)
 {
   ros::init(argc, argv, "rosout_logger_node");
-  ros_logging::Node node;
-  ros::spin();
+  try
+  {
+    ros_logging::Node node;
+    cerr << "Connected to db instance\n";
+    ros::spin();
+  }
+  catch (mongo::ConnectException& e)
+  {
+    cerr << "Error connecting to db: '" << e.what() << "'\n";
+    return 1;
+  }
   return 0;
 }

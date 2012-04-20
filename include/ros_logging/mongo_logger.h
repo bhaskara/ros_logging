@@ -77,6 +77,7 @@ public:
     ros::WallTime max_time;
     std::string message_regex;
     std::string node_name_regex;
+    unsigned limit_recent;
   };
   
   /// Returns messages matching criteria.

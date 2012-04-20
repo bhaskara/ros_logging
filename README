@@ -1,3 +1,12 @@
 Library containing tools to record various ROS-related information to a MongoDB instance.
 - rosout_logger listens to rosout messages and writes them to the db
 - grep_log allows querying the stored rosout messages
+
+Usage:
+- In the background run mongod.  If you have the warehousewg stack, this can be done using
+    $ rosrun mongodb wrapper.py _database_path:=/path/to/db
+- In a terminal,
+    $ rosrun ros_logging rosout_logger
+- Do your ros thing
+- To query the log, use grep_log, e.g., if you want to find out when exactly your robot caught fire:
+    $ rosrun ros_logging grep_log -m fire

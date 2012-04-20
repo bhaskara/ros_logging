@@ -41,7 +41,11 @@
 #include <boost/foreach.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/program_options.hpp>
+#include <boost/scoped_ptr.hpp>
+#include <boost/filesystem.hpp>
 #include <ctime>
+#include <iostream>
+#include <fstream>
 
 using std::cerr;
 using std::cout;
@@ -52,6 +56,37 @@ using ros_logging::MongoLogger;
 using boost::algorithm::trim_copy;
 namespace po=boost::program_options;
 
+int writeSessionStart (const double t)
+{
+  string session_path("/tmp/ros_logging_session_start");
+  std::ofstream f;
+  f.open(session_path.c_str());
+  if (!f.is_open())
+  {
+    cerr << "Unable to open " << session_path << " for writing\n";
+    return 1;
+  }
+    
+  f.setf(ios::fixed);
+  f << setprecision(0) << t;
+  f.close();
+  cerr << "Wrote session start time " << t << " to " << session_path << "\n";
+  return 0;
+}
+
+double getSessionStart ()
+{
+  string session_path("/tmp/ros_logging_session_start");
+  std::ifstream f;
+  f.open(session_path.c_str());
+  if (!f.is_open())
+    return 0.0;
+  
+  double t;
+  f >> t;
+  return t;
+}
+
 int main (int argc, char** argv)
 {
   po::options_description desc("Allowed options");
@@ -61,8 +96,13 @@ int main (int argc, char** argv)
     ("after,a", po::value<int>(), "Earliest timestamp (unix time)")
     ("min_age,n", po::value<int>(), "Minimum age (in minutes)")
     ("max_age,x", po::value<int>(), "Maximum age (in minutes)")
+    ("limit_recent,l", po::value<int>(), "Show the most recent K messages")
     ("tail,t", "Requires max_age to also be provided; after initial query, "
      "continue running and display new messages as they come in")
+    ("start_session,s", "Requires max_age or after to be provide.  Writes"
+     " the corresponding time to /tmp/ros_logging_session_start.  It will "
+     "be used by future calls to grep_log unless ignore_session is specified.")
+    ("ignore_session,i", "Ignore stored session start time info")
     ("message_regex,m", po::value<string>(),
      "Regular expression that message must match")
     ("node_regex,r", po::value<string>(),
@@ -99,18 +139,52 @@ int main (int argc, char** argv)
       return 1;
     }
   }
+  if (vm.count("limit_recent"))
+    criteria.limit_recent = vm["limit_recent"].as<int>();
   if (vm.count("message_regex"))
     criteria.message_regex = vm["message_regex"].as<string>();
   if (vm.count("node_regex"))
     criteria.node_name_regex = vm["node_regex"].as<string>();
+  
+  if (vm.count("start_session"))
+  {
+    if (vm.count("max_age")==0 && vm.count("after")==0)
+    {
+      cerr << "--start_session requires max_age or after to be provided\n";
+      return 1;
+    }
+    return writeSessionStart(criteria.min_time.toSec());
+  }
+
+  if (!vm.count("ignore_session"))
+  {
+    double t = getSessionStart();
+    cerr << "Using session start time " << t << endl;
+    if (t > criteria.min_time.toSec())
+      criteria.min_time = ros::WallTime(t);
+  }
+  
+
+  boost::scoped_ptr<MongoLogger> logger;
+  
+
+  // Connect to the db
+  try
+  {
+    logger.reset(new MongoLogger("rosout_log"));
+  }
+  catch (mongo::ConnectException& e)
+  {
+    cerr << "Error connecting to db: '" << e.what() << "'\n";
+    return 1;
+  }
  
   // Do the query
-  MongoLogger logger("rosout_log");
   double last_receipt_time_secs=ros::WallTime::now().toSec();
   bool print_query = true;
   while (true)
   {
-    BOOST_FOREACH (LogItem::ConstPtr l, logger.filterMessages(criteria,
+    BOOST_FOREACH (LogItem::ConstPtr l, logger->filterMessages(criteria,
                                                               print_query))
     {
       struct tm* time_info;
