@@ -158,7 +158,7 @@ void MongoLogger::write (const Log& l,
   const int node_id = getNodeId(l.name);
   const int id = getCrc(l.msg, node_id);
   BSONObj item = BSON("crc" << id << "node" << node_id << "receipt_time" 
-                      << receipt_time.toSec());
+                      << receipt_time.toSec() << "level" << l.level);
   conn_->insert(log_coll_, item);
 }
 
