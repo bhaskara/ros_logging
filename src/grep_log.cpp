@@ -61,6 +61,8 @@ int main (int argc, char** argv)
     ("after,a", po::value<int>(), "Earliest timestamp (unix time)")
     ("min_age,n", po::value<int>(), "Minimum age (in minutes)")
     ("max_age,x", po::value<int>(), "Maximum age (in minutes)")
+    ("tail,t", "Requires max_age to also be provided; after initial query, "
+     "continue running and display new messages as they come in")
     ("message_regex,m", po::value<string>(),
      "Regular expression that message must match")
     ("node_regex,r", po::value<string>(),
@@ -88,6 +90,15 @@ int main (int argc, char** argv)
   if (vm.count("max_age"))
     criteria.min_time =
       now - ros::WallDuration(60*vm["max_age"].as<int>());
+  if (vm.count("tail"))
+  {
+    if (vm.count("min_age") || vm.count("before"))
+    {
+      cerr << "Tail mode cannot be used with the min_age or before options"
+           << endl;
+      return 1;
+    }
+  }
   if (vm.count("message_regex"))
     criteria.message_regex = vm["message_regex"].as<string>();
   if (vm.count("node_regex"))
@@ -95,16 +106,28 @@ int main (int argc, char** argv)
  
   // Do the query
   MongoLogger logger("rosout_log");
-  BOOST_FOREACH (LogItem::ConstPtr l, logger.filterMessages(criteria))
+  double last_receipt_time_secs=ros::WallTime::now().toSec();
+  bool print_query = true;
+  while (true)
   {
-    struct tm* time_info;
-    time_t receipt_time = int(l->receipt_time.toSec());
-    time_info = localtime(&receipt_time);
+    BOOST_FOREACH (LogItem::ConstPtr l, logger.filterMessages(criteria,
+                                                              print_query))
+    {
+      struct tm* time_info;
+      last_receipt_time_secs = l->receipt_time.toSec();
+      time_t last_receipt_time = int(last_receipt_time_secs);
+      time_info = localtime(&last_receipt_time);
     
-    cout << time_info->tm_year+1900 << "-" << time_info->tm_mon << "-" <<
-      time_info->tm_mday << " " << time_info->tm_hour << ":" <<
-      time_info->tm_min << ":" << time_info->tm_sec << " [" <<
-      l->msg.name << "] " << l->msg.msg << endl;
+      cout << time_info->tm_year+1900 << "-" << time_info->tm_mon << "-" <<
+        time_info->tm_mday << " " << time_info->tm_hour << ":" <<
+        time_info->tm_min << ":" << time_info->tm_sec << " [" <<
+        l->msg.name << "] " << l->msg.msg << endl;
+    }
+    if (vm.count("tail")==0)
+      break;
+    usleep(1e6);
+    criteria.min_time = ros::WallTime(last_receipt_time_secs);
+    print_query = false;
   }
   
   return 0;

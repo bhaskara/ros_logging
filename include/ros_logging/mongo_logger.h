@@ -82,7 +82,8 @@ public:
   /// Returns messages matching criteria.
   /// The returned value is a pair of iterators and satisfies the single-pass
   /// range concept, so can be used in BOOST_FOREACH, etc.
-  ResultRange filterMessages (const MessageCriteria& c);
+  ResultRange filterMessages (const MessageCriteria& c,
+                              bool print_query=false);
   
 private:
   

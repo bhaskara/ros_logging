@@ -162,7 +162,8 @@ void MongoLogger::write (const Log& l,
   conn_->insert(log_coll_, item);
 }
 
-ResultRange MongoLogger::filterMessages (const MessageCriteria& c)
+ResultRange MongoLogger::filterMessages (const MessageCriteria& c,
+                                         const bool print_query)
 {
   BSONObjBuilder builder;
   if (!c.message_regex.empty())
@@ -190,7 +191,7 @@ ResultRange MongoLogger::filterMessages (const MessageCriteria& c)
   if (max_time > 0.0)
   {
     BSONObjBuilder sub;
-    sub.append("$lte", max_time);
+    sub.append("$lt", max_time);
     builder.append("receipt_time", sub.obj());
   }
 
@@ -198,7 +199,7 @@ ResultRange MongoLogger::filterMessages (const MessageCriteria& c)
   if (min_time > 0.0)
   {
     BSONObjBuilder sub;
-    sub.append("$gte", min_time);
+    sub.append("$gt", min_time);
     builder.append("receipt_time", sub.obj());
   }
   BSONObjBuilder sub;
@@ -207,7 +208,8 @@ ResultRange MongoLogger::filterMessages (const MessageCriteria& c)
   sorted_builder.append("query", builder.obj());
   sorted_builder.append("orderby", sub.obj());
   BSONObj query = sorted_builder.obj();
-  cerr << "Final query is: " << query.toString() << endl;
+  if (print_query)
+    cerr << "Final query is: " << query.toString() << endl;
   ResultIterator iter(conn_, message_coll_, node_name_coll_, log_coll_, query);
   return ResultRange(iter, ResultIterator());
 }
