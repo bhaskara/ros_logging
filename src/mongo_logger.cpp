@@ -139,7 +139,8 @@ vector<int> MongoLogger::getMatchingNodes (const string& regex)
 
 vector<int> MongoLogger::getMatchingMessages (const string& regex)
 {
-  BSONObj query = BSONObjBuilder().appendRegex("text", regex).obj();
+  boost::format query_string("{ text : /%1%/i }");
+  BSONObj query = mongo::fromjson((query_string % regex).str());
   CursorAutoPtr cursor = conn_->query(message_coll_, query);
   vector<int> messages;
   while (cursor->more())
