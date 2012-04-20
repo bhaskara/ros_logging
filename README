@@ -4,7 +4,9 @@ Library containing tools to record various ROS-related information to a MongoDB 
 
 Usage:
 - In the background run mongod.  If you have the warehousewg stack, this can be done using
-    $ rosrun mongodb wrapper.py _database_path:=/path/to/db
+```
+$ rosrun mongodb wrapper.py _database_path:=/path/to/db
+```
 - In a terminal,
     $ rosrun ros_logging rosout_logger
 - Do your ros thing
