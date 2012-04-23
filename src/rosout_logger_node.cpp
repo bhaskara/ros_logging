@@ -63,8 +63,8 @@ private:
 
 // Constructor sets up the db connection and subscription
 Node::Node () :
-  logger_("rosout_log"), sub_(nh_.subscribe("rosout_agg", 1000,
-                                            &Node::logCB, this))
+  logger_("ros_logging"), sub_(nh_.subscribe("rosout_agg", 1000,
+                                             &Node::logCB, this))
 {}
 
 void Node::logCB (const Log& l)

@@ -1,0 +1,179 @@
+#!/usr/bin/env python
+
+# Software License Agreement (BSD License)
+#
+# Copyright (c) 2008, Willow Garage, Inc.
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+#  * Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+#  * Redistributions in binary form must reproduce the above
+#    copyright notice, this list of conditions and the following
+#    disclaimer in the documentation and/or other materials provided
+#    with the distribution.
+#  * Neither the name of Willow Garage, Inc. nor the names of its
+#    contributors may be used to endorse or promote products derived
+#    from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+# COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+# INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+# ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Author: Bhaskara Marthi
+
+# Log ros actions to a db
+
+import roslib
+roslib.load_manifest('ros_logging')
+
+import threading
+import rospy
+import pymongo as pm
+import pymongo.binary as binary
+import sys
+import os
+import xmlrpclib
+import re
+import time
+
+DB_PORT=27017
+DB_NAME='ros_logging'
+
+# Database connection
+coll = None
+
+class ActionSubscriber(object):
+    
+    def __init__(self, name, coll, goal_class, result_class):
+        self.name = name
+        self.coll = coll
+        self.goal_class = goal_class
+        self.result_class = result_class
+        self.lock = threading.Lock()
+
+        self.goal_id = None
+        self.raw = None
+        self.goal_receipt_time = None
+        
+        self.goal_sub = rospy.Subscriber(name+'/goal', rospy.AnyMsg,
+                                         self.handle_goal)
+        self.result_sub = rospy.Subscriber(name+'/result', rospy.AnyMsg,
+                                           self.handle_result)
+
+
+    def handle_goal(self, raw):
+        with self.lock:
+            self.goal_receipt_time = time.time()
+            self.raw = raw._buff
+            msg = self.goal_class()
+            msg.deserialize(raw._buff)
+
+            rospy.loginfo("Received goal {0}".format(msg))
+            
+            if self.goal_id is not None:
+                rospy.logwarn("Overwriting old goal id {0} with {1}".
+                              format(self.goal_id, msg.goal_id.id))
+            self.goal_id = msg.goal_id.id
+            rospy.loginfo("Done handling goal")
+
+    def handle_result(self, raw):
+        with self.lock:
+            t = time.time()
+            msg = self.result_class()
+            msg.deserialize(raw._buff)
+            rospy.loginfo("Received result {0}".format(msg))
+            
+            res_id = msg.status.goal_id.id
+            if res_id != self.goal_id:
+                rospy.logwarn("Result id {0} didn't match goal {1}; ignoring")
+                return
+
+            item = {'blob': binary.Binary(self.raw), 'result_time': t,
+                    'goal_time': self.goal_receipt_time, 'status':
+                    msg.status.status}
+            self.coll.insert(item)
+            rospy.loginfo("Done handling result")
+
+            
+def update_actions(actions, topics):
+    "Update the action dictionary based on current list of topics"
+    for topic, msg_type in topics:
+        res = re.match('(.*)/result$', topic)
+
+        # Assume each topic of form foo/bar/result corresponds to an action
+        if res:
+            name = res.group(1)
+
+            # We haven't seen this one before, so add it
+            if name not in actions:
+                rospy.loginfo("Adding action {0}".format(name))
+
+                # Figure out the package and the type of the result and goal
+                res2 = re.match('(.*)/(.*)$', msg_type)
+                pkg = res2.group(1)
+                result_type = res2.group(2)
+                goal_type = result_type[:-6]+'Goal'
+
+                rospy.loginfo("Adding {0} of type {1}/{2}".\
+                              format(name, pkg, result_type))
+
+                # Import the ros package
+                try:
+                    roslib.load_manifest(pkg)
+                    m = __import__(pkg+'.msg')
+                    mod = getattr(m, 'msg')
+                except roslib.packages.InvalidROSPkgException:
+                    rospy.logwarn("Package {0} not found".format(pkg))
+                    continue
+                except ImportError:
+                    rospy.logwarn("No messages found in {0}".format(pkg))
+
+                rospy.loginfo("Imported")
+
+                # Get the message class objects
+                try:
+                    goal_class = getattr(mod, goal_type)
+                    result_class = getattr(mod, result_type)
+                except AttributeError:
+                    rospy.logwarn("Couldn't find {0} or {1} in {2}".\
+                                  format(goal_type, result_type, pkg))
+
+                # Create subscriber object
+                actions[name] = ActionSubscriber(name, coll, goal_class, result_class)
+
+            
+            
+
+def main():
+    global coll
+    
+    rospy.init_node('action_logger')
+    actions = {}
+    server = xmlrpclib.ServerProxy(os.environ['ROS_MASTER_URI'])
+    conn = pm.Connection(port=27017)
+    coll = conn['DB_NAME'].action_log
+    
+    while not rospy.is_shutdown():
+        resp = server.getPublishedTopics('action_logger', '')
+        if resp[0]!=1:
+            rospy.logwarn("Received response {0} from master; skipping".\
+                          format(resp))
+            continue
+        update_actions(actions, resp[2])
+        time.sleep(1.0)
+    
+if __name__=='__main__':
+    sys.exit(main())

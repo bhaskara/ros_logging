@@ -171,7 +171,7 @@ int main (int argc, char** argv)
   // Connect to the db
   try
   {
-    logger.reset(new MongoLogger("rosout_log"));
+    logger.reset(new MongoLogger("ros_logging"));
   }
   catch (mongo::ConnectException& e)
   {
