@@ -2,7 +2,9 @@ Usage
 =====
 
 1. In the background run mongod.  If you have the warehousewg stack, this can be done using::
+
   $ rosrun mongodb wrapper.py _database_path:=/path/to/db
+
 2. In a terminal::
   $ rosrun ros_logging rosout_logger
 3. Do your ros thing
