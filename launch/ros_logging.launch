@@ -25,7 +25,7 @@ Args:
   <param name="overwrite" value="false"/>
 </node>
 
-<node pkg="ros_logging" type="rosout_logger" name="rosout_logger"/>
+<node pkg="ros_logging" type="rosout_logger" name="rosout_logger" output="screen"/>
 
 <node pkg="ros_logging" type="action_logger" name="action_logger" output="screen"/>
 

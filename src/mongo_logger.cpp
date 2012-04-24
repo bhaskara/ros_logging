@@ -89,7 +89,8 @@ int computeCrc (const string& text)
   return res.checksum();
 }
 
-int MongoLogger::getCrc (const string& text, const int node_id)
+int MongoLogger::getCrc (const string& text, const int node_id,
+                         const unsigned level)
 {
   const int crc = computeCrc(text);
   CursorAutoPtr cursor = conn_->query(message_coll_, 
@@ -97,7 +98,8 @@ int MongoLogger::getCrc (const string& text, const int node_id)
   if (!cursor->more())
   {
     // We haven't seen this message before, so add it
-    BSONObj item = BSON("crc" << crc << "text" << text << "node_id" << node_id);
+    BSONObj item = BSON("crc" << crc << "text" << text <<
+                        "node_id" << node_id << "level" << level);
     conn_->insert(message_coll_, item);
   }
   return crc;
@@ -137,10 +139,13 @@ vector<int> MongoLogger::getMatchingNodes (const string& regex)
   return nodes;
 }
 
-vector<int> MongoLogger::getMatchingMessages (const string& regex)
+vector<int> MongoLogger::getMatchingMessages (const string& regex,
+                                              const unsigned min_level)
 {
-  boost::format query_string("{ text : /%1%/i }");
-  BSONObj query = mongo::fromjson((query_string % regex).str());
+  boost::format query_fmt("{ text : /%1%/i , level: {$gte: %2%} }");
+  std::string query_string = (query_fmt % regex % min_level).str();
+  //ROS_INFO ("Message query is %s", query_string.c_str());
+  BSONObj query = mongo::fromjson(query_string);
   CursorAutoPtr cursor = conn_->query(message_coll_, query);
   vector<int> messages;
   while (cursor->more())
@@ -156,20 +161,25 @@ void MongoLogger::write (const Log& l,
                          const ros::WallTime& receipt_time)
 {
   const int node_id = getNodeId(l.name);
-  const int id = getCrc(l.msg, node_id);
+  const int id = getCrc(l.msg, node_id, l.level);
   BSONObj item = BSON("crc" << id << "node" << node_id << "receipt_time" 
                       << receipt_time.toSec() << "level" << l.level);
   conn_->insert(log_coll_, item);
 }
 
+// First look for all messages matching the criteria, then search the
+// log for all instances of those messages.  Note: this could be inefficient
+// if there's a large number of messages relative to the overall db size,
+// in which case it might be faster to just return all the messages and 
+// check them as they go by.
 ResultRange MongoLogger::filterMessages (const MessageCriteria& c,
                                          const bool print_query)
 {
   BSONObjBuilder builder;
-  if (!c.message_regex.empty())
+  if (!c.message_regex.empty() || c.min_level > 0)
   {
     BSONArrayBuilder id_builder;
-    vector<int> ids = getMatchingMessages(c.message_regex);
+    vector<int> ids = getMatchingMessages(c.message_regex, c.min_level);
     BOOST_FOREACH (const int id, ids)
       id_builder.append(id);
     BSONObjBuilder sub;

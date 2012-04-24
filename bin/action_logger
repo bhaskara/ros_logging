@@ -53,7 +53,14 @@ DB_NAME='ros_logging'
 def main():
     rospy.init_node('action_logger')
     server = xmlrpclib.ServerProxy(os.environ['ROS_MASTER_URI'])
-    conn = pm.Connection(port=27017)
+    while not rospy.is_shutdown():
+        try:
+            conn = pm.Connection(port=27017)
+            break
+        except:
+            rospy.loginfo("Waiting for db connection")
+            rospy.sleep(1.0)
+    
     logger = act.ActionLogger(conn[DB_NAME], server)
     rospy.loginfo("Action logger initialized")
     

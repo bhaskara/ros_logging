@@ -79,16 +79,21 @@ using std::cerr;
 int main (int argc, char** argv)
 {
   ros::init(argc, argv, "rosout_logger_node");
-  try
+  ros::NodeHandle nh; // Otherwise the ros::ok will fail on iteration 2
+  while (ros::ok())
   {
-    ros_logging::Node node;
-    cerr << "Connected to db instance\n";
-    ros::spin();
-  }
-  catch (mongo::ConnectException& e)
-  {
-    cerr << "Error connecting to db: '" << e.what() << "'\n";
-    return 1;
+    try
+    {
+      ros_logging::Node node;
+      cerr << "Connected to db instance\n";
+      ros::spin();
+      break;
+    }
+    catch (mongo::ConnectException& e)
+    {
+      cerr << "Waiting for db connection\n";
+      ros::WallDuration(1.0).sleep();
+    }
   }
   return 0;
 }

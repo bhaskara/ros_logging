@@ -105,6 +105,8 @@ int main (int argc, char** argv)
     ("ignore_session,i", "Ignore stored session start time info")
     ("message_regex,m", po::value<string>(),
      "Regular expression that message must match")
+    ("min_level,d", po::value<string>(),
+     "One of d(ebug), i(nfo), w(arning), e(rror), or f(atal)")
     ("node_regex,r", po::value<string>(),
      "Regular expression that node name must match");
   po::variables_map vm;
@@ -130,6 +132,20 @@ int main (int argc, char** argv)
   if (vm.count("max_age"))
     criteria.min_time =
       now - ros::WallDuration(60*vm["max_age"].as<int>());
+  criteria.min_level=0;
+  if (vm.count("min_level"))
+  {
+    char c = vm["min_level"].as<string>()[0];
+    switch (c)
+    {
+    case 'd': criteria.min_level = 1; break;
+    case 'i': criteria.min_level = 2; break;
+    case 'w': criteria.min_level = 4; break;
+    case 'e': criteria.min_level = 8; break;
+    case 'f': criteria.min_level = 16; break;
+    default: cerr << "Unknown value " << c << " for min_level\n";
+    }
+  }
   if (vm.count("tail"))
   {
     if (vm.count("min_age") || vm.count("before"))

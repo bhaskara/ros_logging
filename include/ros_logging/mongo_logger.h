@@ -78,6 +78,7 @@ public:
     std::string message_regex;
     std::string node_name_regex;
     unsigned limit_recent;
+    unsigned min_level;
   };
   
   /// Returns messages matching criteria.
@@ -94,13 +95,14 @@ private:
   /// Return crc given message text.  Add to db if unseen.
   /// The node id is included to reduce the chance of collisions, so a 
   /// collision can only happen between two messages from the same node.
-  int getCrc (const std::string& text, int node_id);
+  int getCrc (const std::string& text, int node_id, unsigned level);
   
   /// Return vector of ids of nodes whose names match the given regex
   std::vector<int> getMatchingNodes (const std::string& regex);
   
   /// Return vector of crcs of messages matching the given regex
-  std::vector<int> getMatchingMessages (const std::string& regex);
+  std::vector<int> getMatchingMessages (const std::string& regex,
+                                        const unsigned level);
 
   // The connection to the Mongo server
   boost::shared_ptr<mongo::DBClientConnection> conn_;
