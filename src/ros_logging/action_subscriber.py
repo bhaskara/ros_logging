@@ -88,7 +88,7 @@ class ActionSubscriber(object):
 
             item = {'blob': binary.Binary(self.raw), 'result_time': t,
                     'goal_time': self.goal_receipt_time, 'status':
-                    msg.status.status}
+                    msg.status.status, 'name': self.name}
             self.coll.insert(item)
             rospy.loginfo("Done handling result")
 

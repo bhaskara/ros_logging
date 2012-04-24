@@ -109,7 +109,7 @@ def main():
     actions = {}
     server = xmlrpclib.ServerProxy(os.environ['ROS_MASTER_URI'])
     conn = pm.Connection(port=27017)
-    coll = conn['DB_NAME'].action_log
+    coll = conn[DB_NAME].action_log
     
     while not rospy.is_shutdown():
         resp = server.getPublishedTopics('action_logger', '')
