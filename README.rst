@@ -1,3 +1,8 @@
+Installation
+============
+
+You need to have a base ROS `installation <http://www.ros.org/wiki/electric/Installation>`_ as well as the `warehousewg <http://www.ros.org/wiki/warehousewg>`_ stack installed.  Then, clone this repo into your ``ROS_PACKAGE_PATH`` and do a ``make``.
+
 Setup
 =====
 

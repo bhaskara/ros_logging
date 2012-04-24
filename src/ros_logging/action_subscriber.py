@@ -70,13 +70,13 @@ class ActionSubscriber(object):
             self.msg = self.goal_class()
             self.msg.deserialize(raw._buff)
 
-            rospy.loginfo("Received goal {0}".format(self.msg))
+            # rospy.loginfo("Received goal {0}".format(self.msg))
             
             if self.goal_id is not None:
                 rospy.logwarn("Overwriting old goal id {0} with {1}".
                               format(self.goal_id, self.msg.goal_id.id))
             self.goal_id = self.msg.goal_id.id
-            rospy.loginfo("Done handling goal")
+            # rospy.loginfo("Done handling goal")
 
     def handle_result(self, raw):
         with self.lock:
@@ -84,7 +84,7 @@ class ActionSubscriber(object):
             t = time.time()
             msg = self.result_class()
             msg.deserialize(raw._buff)
-            rospy.loginfo("Received result {0}".format(msg))
+            # rospy.loginfo("Received result {0}".format(msg))
             
             # Check it matches the last goal
             res_id = msg.status.goal_id.id
@@ -106,7 +106,7 @@ class ActionSubscriber(object):
             self.raw = None
             self.msg = None
             
-            rospy.loginfo("Done handling result")
+            # rospy.loginfo("Done handling result")
             
 
             
