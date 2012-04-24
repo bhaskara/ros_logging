@@ -194,8 +194,15 @@ int main (int argc, char** argv)
     cerr << "Error connecting to db: '" << e.what() << "'\n";
     return 1;
   }
+  
+  // Print color output?
+  string term(getenv("TERM"));
+  bool color=false;
+  if (term=="xterm" || term=="eterm-color")
+    color = true;
+  
  
-  // Do the query
+  // Do the query and print results
   double last_receipt_time_secs=ros::WallTime::now().toSec();
   bool print_query = true;
   while (true)
@@ -208,10 +215,18 @@ int main (int argc, char** argv)
       time_t last_receipt_time = int(last_receipt_time_secs);
       time_info = localtime(&last_receipt_time);
     
-      cout << time_info->tm_year+1900 << "-" << time_info->tm_mon << "-" <<
-        time_info->tm_mday << " " << time_info->tm_hour << ":" <<
-        time_info->tm_min << ":" << time_info->tm_sec << " [" <<
-        l->msg.name << "] " << l->msg.msg << endl;
+      cout << time_info->tm_year+1900 << "-" << setfill('0') << setw(2) <<
+        time_info->tm_mon << "-" << setfill('0') << setw(2) <<
+        time_info->tm_mday << " " << setfill('0') << setw(2) <<
+        time_info->tm_hour << ":" << setfill('0') << setw(2) <<
+        time_info->tm_min << ":" << setfill('0') << setw(2) << 
+        time_info->tm_sec;
+      if (color)
+        cout << "\033[1;31m";
+      cout << " [" << l->msg.name << "] ";
+      if (color)
+        cout << "\033[0m";
+      cout << l->msg.msg << endl;
     }
     if (vm.count("tail")==0)
       break;
