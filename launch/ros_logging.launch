@@ -1,0 +1,34 @@
+<!--
+Brings up ros logging of various info
+
+Requires:
+- A running db instance, unless the run_db arg is true
+
+Provides:
+- Logging of rosout messages
+- Logging of ros actions
+
+Args:
+- run_db: whether to run a db.  Defaults to false.  If true, the db_path 
+  argument must be provided.
+- db_path: where to put the db, if run_db is true.  Appends to rather than 
+  overwriting existing db at that location.
+-->
+
+<launch>
+  
+<arg name="run_db" default="false"/>
+<arg name="db_path" default="/tmp/mongo"/>
+
+<node if="$(arg run_db)" pkg="mongodb" type="wrapper.py" name="mongodb">
+  <param name="database_path" value="$(arg db_path)"/>
+  <param name="overwrite" value="false"/>
+</node>
+
+<node pkg="ros_logging" type="rosout_logger" name="rosout_logger"/>
+
+<node pkg="ros_logging" type="action_logger" name="action_logger"/>
+
+
+
+</launch>

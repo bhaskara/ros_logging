@@ -2,7 +2,9 @@ import roslib
 
 def normalize_name(name):
     "Normalize an action name: /foo/bar/baz -> foo_bar_baz"
-    return name[1:].replace('/','_')
+    if name.startswith('/'):
+        name = name[1:]
+    return name.replace('/','_')
 
 def get_classes(pkg, action_type):
     "Get goal and result action class objects given action type name"
