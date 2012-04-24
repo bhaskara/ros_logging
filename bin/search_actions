@@ -36,10 +36,31 @@
 
 # Search the db for actions
 
+import roslib
+roslib.load_manifest('ros_logging')
 import argparse
 import sys
 import pymongo
 import time
+import ros_logging.ros_actions as act
+from actionlib_msgs.msg import GoalStatus
+
+
+STATUSES = {GoalStatus.PENDING : 'pending',
+            GoalStatus.ACTIVE: 'active',
+            GoalStatus.PREEMPTED: 'preempted',
+            GoalStatus.SUCCEEDED: 'succeeded',
+            GoalStatus.ABORTED: 'aborted',
+            GoalStatus.REJECTED: 'rejected',
+            GoalStatus.PREEMPTING: 'preempting',
+            GoalStatus.RECALLING: 'recalling',
+            GoalStatus.RECALLED: 'recalled',
+            GoalStatus.LOST: 'lost'}
+
+DB_NAME='ros_logging'
+ACTION_TYPE_COLL_NAME='action_logging_action_types'
+ACTION_COLL_PREFIX='action_logger'
+
 
 def main(argv=sys.argv):
     parser = argparse.ArgumentParser(description="Filter action history")
@@ -51,16 +72,31 @@ def main(argv=sys.argv):
 
     args = parser.parse_args()
     t = time.time()
-    min_time = t - args.max_age if args.max_age else 0.0
-    max_time = t - args.min_age if args.min_age else t
+    min_time = t - 60*args.max_age if args.max_age else 0.0
+    max_time = t - 60*args.min_age if args.min_age else t
 
     conn = pymongo.Connection()
-    db = conn['ros_logging']
-    coll = db.action_log
-    q = {'goal_time': {'$gte': min_time, '$lte': max_time},
-         'name': args.action_name}
-    for x in coll.find(q):    
-        print x['goal_time']
+    db = conn[DB_NAME]
+    type_coll = db[ACTION_TYPE_COLL_NAME]
+    name = act.normalize_name(args.action_name)
+    entry = type_coll.find_one({'name': name})
+    if entry is None:
+        sys.stderr.write("Couldn't find info for action {0}\n".\
+                         format(name))
+        return 1
+
+    goal_class = act.get_goal_class(entry['pkg'], entry['type'])
+    q = {'goal_time': {'$gte': min_time, '$lte': max_time}}
+    sys.stderr.write("Action type is {0}/{1}\n".\
+                             format(entry['pkg'], entry['type']))
+    coll_name = ACTION_COLL_PREFIX+'_'+name
+    sys.stderr.write("Querying {0} for {1}\n".format(coll_name, q))
+    for x in db[coll_name].find(q):
+        msg = goal_class()
+        msg.deserialize(x['blob'])
+        print("---\nGoal time: {0}\nResult time: {1}\nResult status: {3}\n{2}".\
+              format(x['goal_time'], x['result_time'], msg,
+                     STATUSES[x['status']]))
 
 if __name__=='__main__':
     sys.exit(main())

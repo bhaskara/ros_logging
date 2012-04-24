@@ -39,14 +39,18 @@ import rospy
 import re
 import time
 import pymongo.binary as binary
+import roslib
+import ros_actions as act
+from cStringIO import StringIO
 
 class ActionSubscriber(object):
     
-    def __init__(self, name, coll, goal_class, result_class):
-        self.name = name
+    def __init__(self, name, coll, pkg, action_type):
         self.coll = coll
-        self.goal_class = goal_class
-        self.result_class = result_class
+        self.pkg = pkg
+        self.action_type = action_type
+        self.goal_class, self.result_class = act.get_classes(pkg, action_type)
+        
         self.lock = threading.Lock()
 
         self.goal_id = None
@@ -63,35 +67,46 @@ class ActionSubscriber(object):
         with self.lock:
             self.goal_receipt_time = time.time()
             self.raw = raw._buff
-            msg = self.goal_class()
-            msg.deserialize(raw._buff)
+            self.msg = self.goal_class()
+            self.msg.deserialize(raw._buff)
 
-            rospy.loginfo("Received goal {0}".format(msg))
+            rospy.loginfo("Received goal {0}".format(self.msg))
             
             if self.goal_id is not None:
                 rospy.logwarn("Overwriting old goal id {0} with {1}".
-                              format(self.goal_id, msg.goal_id.id))
-            self.goal_id = msg.goal_id.id
+                              format(self.goal_id, self.msg.goal_id.id))
+            self.goal_id = self.msg.goal_id.id
             rospy.loginfo("Done handling goal")
 
     def handle_result(self, raw):
         with self.lock:
+            # Get the message object
             t = time.time()
             msg = self.result_class()
             msg.deserialize(raw._buff)
             rospy.loginfo("Received result {0}".format(msg))
             
+            # Check it matches the last goal
             res_id = msg.status.goal_id.id
             if res_id != self.goal_id:
                 rospy.logwarn("Result id {0} didn't match goal {1}; ignoring")
                 return
 
-            item = {'blob': binary.Binary(self.raw), 'result_time': t,
+            # Write to db
+            buff = StringIO()
+            self.msg.goal.serialize(buff)
+            item = {'blob': binary.Binary(buff.getvalue()), 'result_time': t,
                     'goal_time': self.goal_receipt_time, 'status':
-                    msg.status.status, 'name': self.name}
+                    msg.status.status}
             self.coll.insert(item)
-            rospy.loginfo("Done handling result")
 
+            # Reset state
+            self.goal_id = None
+            self.goal_receipt_time = None
+            self.raw = None
+            self.msg = None
+            
+            rospy.loginfo("Done handling result")
             
 
             

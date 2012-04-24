@@ -39,86 +39,28 @@
 import roslib
 roslib.load_manifest('ros_logging')
 
-import threading
 import rospy
 import pymongo as pm
 import sys
 import os
 import xmlrpclib
-import re
 import time
-import ros_logging.action_subscriber as asub
+import ros_logging.action_logger as act
 
 DB_PORT=27017
 DB_NAME='ros_logging'
 
-# Database connection
-coll = None
-
-            
-def update_actions(actions, topics):
-    "Update the action dictionary based on current list of topics"
-    for topic, msg_type in topics:
-        res = re.match('(.*)/result$', topic)
-
-        # Assume each topic of form foo/bar/result corresponds to an action
-        if res:
-            name = res.group(1)
-
-            # We haven't seen this one before, so add it
-            if name not in actions:
-                rospy.loginfo("Adding action {0}".format(name))
-
-                # Figure out the package and the type of the result and goal
-                res2 = re.match('(.*)/(.*)$', msg_type)
-                pkg = res2.group(1)
-                result_type = res2.group(2)
-                goal_type = result_type[:-6]+'Goal'
-
-                rospy.loginfo("Adding {0} of type {1}/{2}".\
-                              format(name, pkg, result_type))
-
-                # Import the ros package
-                try:
-                    roslib.load_manifest(pkg)
-                    m = __import__(pkg+'.msg')
-                    mod = getattr(m, 'msg')
-                except roslib.packages.InvalidROSPkgException:
-                    rospy.logwarn("Package {0} not found".format(pkg))
-                    continue
-                except ImportError:
-                    rospy.logwarn("No messages found in {0}".format(pkg))
-
-                rospy.loginfo("Imported")
-
-                # Get the message class objects
-                try:
-                    goal_class = getattr(mod, goal_type)
-                    result_class = getattr(mod, result_type)
-                except AttributeError:
-                    rospy.logwarn("Couldn't find {0} or {1} in {2}".\
-                                  format(goal_type, result_type, pkg))
-
-                # Create subscriber object
-                actions[name] = asub.ActionSubscriber(name, coll, goal_class, result_class)
-
 def main():
-    global coll
-    
     rospy.init_node('action_logger')
-    actions = {}
     server = xmlrpclib.ServerProxy(os.environ['ROS_MASTER_URI'])
     conn = pm.Connection(port=27017)
-    coll = conn[DB_NAME].action_log
+    logger = act.ActionLogger(conn[DB_NAME], server)
+    rospy.loginfo("Action logger initialized")
     
     while not rospy.is_shutdown():
-        resp = server.getPublishedTopics('action_logger', '')
-        if resp[0]!=1:
-            rospy.logwarn("Received response {0} from master; skipping".\
-                          format(resp))
-            continue
-        update_actions(actions, resp[2])
-        time.sleep(1.0)
+        logger.update()
+
+    return 0
     
 if __name__=='__main__':
     sys.exit(main())
