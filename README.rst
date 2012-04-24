@@ -36,4 +36,4 @@ Querying the action history
 
 For each ROS action that was performed, the goal message, goal time, and result time and status are logged.  You can query by specifying action name and optionally a max and min age.  E.g., the following gets all move_base actions that happened between one and two hours ago::
 
-    $ rosrun ros_logging search_actions -x 120 -m 60 move_base
+    $ rosrun ros_logging search_actions -x 120 -m 60 -a move_base

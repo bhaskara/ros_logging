@@ -44,6 +44,7 @@ import pymongo
 import time
 import ros_logging.ros_actions as act
 from actionlib_msgs.msg import GoalStatus
+import re
 
 
 STATUSES = {GoalStatus.PENDING : 'pending',
@@ -59,12 +60,12 @@ STATUSES = {GoalStatus.PENDING : 'pending',
 
 DB_NAME='ros_logging'
 ACTION_TYPE_COLL_NAME='action_logging_action_types'
-ACTION_COLL_PREFIX='action_logger'
+ACTION_COLL_NAME='action_log'
 
 
 def main(argv=sys.argv):
     parser = argparse.ArgumentParser(description="Filter action history")
-    parser.add_argument('action_name', help="ROS namespace of action")
+    parser.add_argument('--action_regex', '-a', help="Regex for action name")
     parser.add_argument('--max_age', '-x', dest='max_age', type=int,
                         help="Max age in minutes of goal receipt")
     parser.add_argument('--min_age', '-m', dest='min_age', type=int,
@@ -78,25 +79,26 @@ def main(argv=sys.argv):
     conn = pymongo.Connection()
     db = conn[DB_NAME]
     type_coll = db[ACTION_TYPE_COLL_NAME]
-    name = act.normalize_name(args.action_name)
-    entry = type_coll.find_one({'name': name})
-    if entry is None:
-        sys.stderr.write("Couldn't find info for action {0}\n".\
-                         format(name))
-        return 1
-
-    goal_class = act.get_goal_class(entry['pkg'], entry['type'])
-    q = {'goal_time': {'$gte': min_time, '$lte': max_time}}
-    sys.stderr.write("Action type is {0}/{1}\n".\
-                             format(entry['pkg'], entry['type']))
-    coll_name = ACTION_COLL_PREFIX+'_'+name
-    sys.stderr.write("Querying {0} for {1}\n".format(coll_name, q))
-    for x in db[coll_name].find(q):
-        msg = goal_class()
+    action_coll = db[ACTION_COLL_NAME]
+    ids = []
+    classes = {}
+    names = {}
+    for x in type_coll.find({'name': { '$regex': args.action_regex,
+                                       '$options': 'i'}}):
+        ids.append(x['_id'])
+        classes[x['_id']] = act.get_goal_class(x['pkg'], x['type'])
+        names[x['_id']] = x['name']
+        
+    q = {'goal_time': {'$gte': min_time, '$lte': max_time},
+         'action_id': {'$in': ids}}
+    sys.stderr.write("Query: {0}\n".format(q))
+    for x in action_coll.find(q):
+        msg = classes[x['action_id']]()
         msg.deserialize(x['blob'])
-        print("---\nGoal time: {0}\nResult time: {1}\nResult status: {3}\n{2}".\
-              format(x['goal_time'], x['result_time'], msg,
-                     STATUSES[x['status']]))
+        print("---\nAction: {0}\nGoal time: {1}\nResult time: {2}\n"\
+              "Result status: {4}\n{3}".\
+              format(names[x['action_id']], x['goal_time'], x['result_time'],
+                     msg, STATUSES[x['status']]))
 
 if __name__=='__main__':
     sys.exit(main())

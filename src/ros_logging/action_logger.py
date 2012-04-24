@@ -44,6 +44,7 @@ import ros_logging.action_subscriber as sub
 import ros_actions as act
 
 ACTION_TYPE_COLL = 'action_logging_action_types'
+ACTION_COLL_NAME = 'action_log'
 
 class ActionLogger(object):
     """
@@ -100,11 +101,12 @@ class ActionLogger(object):
                           "terminating".format(doc['pkg'], doc['type'], name,
                                                pkg, action_type)
                     raise RuntimeError(msg)
+                action_id = doc['_id']
             else:
                 entry = {'name': name, 'pkg': pkg, 'type': action_type}
-                self.action_type_coll.insert(entry)
+                action_id = self.action_type_coll.insert(entry)
 
             # Set up subscription
             coll_name = 'action_logger_'+name
-            self.actions[name] = sub.ActionSubscriber(name, self.db[coll_name],
-                                                      pkg, action_type)
+            self.actions[name] = sub.ActionSubscriber(name, self.db[ACTION_COLL_NAME],
+                                                      pkg, action_type, action_id)

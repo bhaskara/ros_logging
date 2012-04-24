@@ -45,11 +45,12 @@ from cStringIO import StringIO
 
 class ActionSubscriber(object):
     
-    def __init__(self, name, coll, pkg, action_type):
+    def __init__(self, name, coll, pkg, action_type, action_id):
         self.coll = coll
         self.pkg = pkg
         self.action_type = action_type
         self.goal_class, self.result_class = act.get_classes(pkg, action_type)
+        self.action_id = action_id
         
         self.lock = threading.Lock()
 
@@ -97,7 +98,7 @@ class ActionSubscriber(object):
             self.msg.goal.serialize(buff)
             item = {'blob': binary.Binary(buff.getvalue()), 'result_time': t,
                     'goal_time': self.goal_receipt_time, 'status':
-                    msg.status.status}
+                    msg.status.status, 'action_id': self.action_id}
             self.coll.insert(item)
 
             # Reset state

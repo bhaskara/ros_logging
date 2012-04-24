@@ -27,7 +27,7 @@ Args:
 
 <node pkg="ros_logging" type="rosout_logger" name="rosout_logger"/>
 
-<node pkg="ros_logging" type="action_logger" name="action_logger"/>
+<node pkg="ros_logging" type="action_logger" name="action_logger" output="screen"/>
 
 
 
