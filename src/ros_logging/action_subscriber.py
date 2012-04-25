@@ -89,8 +89,9 @@ class ActionSubscriber(object):
             
             # Check it matches the last goal
             res_id = msg.status.goal_id.id
-            if res_id != self.goal_id:
-                rospy.logwarn("Result id {0} didn't match goal {1}; ignoring")
+            if str(self.goal_id) and len(self.goal_id)>0 and res_id != self.goal_id:
+                rospy.logwarn("Result id {0} didn't match goal {1}; ignoring".\
+                              format(res_id, self.goal_id))
                 return
 
             # Write to db

@@ -45,7 +45,7 @@ import time
 import ros_logging.ros_actions as act
 from actionlib_msgs.msg import GoalStatus
 import re
-
+import datetime as dt
 
 STATUSES = {GoalStatus.PENDING : 'pending',
             GoalStatus.ACTIVE: 'active',
@@ -62,6 +62,11 @@ DB_NAME='ros_logging'
 ACTION_TYPE_COLL_NAME='action_logging_action_types'
 ACTION_COLL_NAME='action_log'
 
+def format_timestamp(stamp):
+    t=dt.datetime.fromtimestamp(stamp)
+    return "{0.year}-{0.month:02d}-{0.day:02d} "\
+           "{0.hour:02d}:{0.minute:02d}:{0.second:02d}".\
+           format(t)
 
 def main(argv=sys.argv):
     parser = argparse.ArgumentParser(description="Filter action history")
@@ -97,7 +102,8 @@ def main(argv=sys.argv):
         msg.deserialize(x['blob'])
         print("---\nAction: {0}\nGoal time: {1}\nResult time: {2}\n"\
               "Result status: {4}\n{3}".\
-              format(names[x['action_id']], x['goal_time'], x['result_time'],
+              format(names[x['action_id']], format_timestamp(x['goal_time']),
+                     format_timestamp(x['result_time']),
                      msg, STATUSES[x['status']]))
 
 if __name__=='__main__':
