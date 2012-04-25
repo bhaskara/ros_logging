@@ -66,6 +66,7 @@ def main():
     
     while not rospy.is_shutdown():
         logger.update()
+        rospy.sleep(1.0)
 
     return 0
     
