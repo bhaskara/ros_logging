@@ -12,6 +12,7 @@ Library for logging various info about robot execution to a database
   <depend package="rosgraph_msgs"/>
   <depend package="roscpp"/>
   <depend package="actionlib_msgs"/>
+  <depend package="pymongo"/>
 
 </package>
 
