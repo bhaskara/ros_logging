@@ -47,15 +47,16 @@ namespace ros_logging
 
 struct LogItem
 {
-  LogItem (const rosgraph_msgs::Log& l,
+  LogItem (rosgraph_msgs::Log::Ptr l,
            const ros::WallTime& receipt_time) :
     msg(l), receipt_time(receipt_time)
   {}
 
-  LogItem ()
+  LogItem () :
+    msg(new rosgraph_msgs::Log())
   {}
 
-  rosgraph_msgs::Log msg;
+  rosgraph_msgs::Log::Ptr msg;
   ros::WallTime receipt_time;
   
   typedef boost::shared_ptr<LogItem> Ptr;

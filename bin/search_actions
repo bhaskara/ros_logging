@@ -75,6 +75,8 @@ def main(argv=sys.argv):
                         help="Max age in minutes of goal receipt")
     parser.add_argument('--min_age', '-m', dest='min_age', type=int,
                         help="Min age in minutes of goal receipt")
+    parser.add_argument('--verbose', '-v', dest='verbose', type=bool,
+                        help="Whether to print debugging info")
 
     args = parser.parse_args()
     t = time.time()
@@ -96,7 +98,8 @@ def main(argv=sys.argv):
         
     q = {'goal_time': {'$gte': min_time, '$lte': max_time},
          'action_id': {'$in': ids}}
-    sys.stderr.write("Query: {0}\n".format(q))
+    if args.verbose:
+        sys.stderr.write("Query: {0}\n".format(q))
     for x in action_coll.find(q):
         msg = classes[x['action_id']]()
         msg.deserialize(x['blob'])

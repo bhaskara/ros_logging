@@ -96,7 +96,6 @@ int main (int argc, char** argv)
     ("after,a", po::value<int>(), "Earliest timestamp (unix time)")
     ("min_age,n", po::value<int>(), "Minimum age (in minutes)")
     ("max_age,x", po::value<int>(), "Maximum age (in minutes)")
-    ("limit_recent,l", po::value<int>(), "Show the most recent K messages")
     ("tail,t", "Requires max_age to also be provided; after initial query, "
      "continue running and display new messages as they come in")
     ("start_session,s", "Requires max_age or after to be provide.  Writes"
@@ -105,6 +104,7 @@ int main (int argc, char** argv)
     ("ignore_session,i", "Ignore stored session start time info")
     ("message_regex,m", po::value<string>(),
      "Regular expression that message must match")
+    ("verbose,v", "Show debug information")
     ("min_level,d", po::value<string>(),
      "One of d(ebug), i(nfo), w(arning), e(rror), or f(atal)")
     ("node_regex,r", po::value<string>(),
@@ -155,8 +155,10 @@ int main (int argc, char** argv)
       return 1;
     }
   }
+  /*
   if (vm.count("limit_recent"))
     criteria.limit_recent = vm["limit_recent"].as<int>();
+  */
   if (vm.count("message_regex"))
     criteria.message_regex = vm["message_regex"].as<string>();
   if (vm.count("node_regex"))
@@ -175,9 +177,11 @@ int main (int argc, char** argv)
   if (!vm.count("ignore_session"))
   {
     double t = getSessionStart();
-    cerr << "Using session start time " << t << endl;
     if (t > criteria.min_time.toSec())
+    {
+      cerr << "Using saved session: only considering messages after " << t << endl;
       criteria.min_time = ros::WallTime(t);
+    }
   }
   
 
@@ -204,7 +208,7 @@ int main (int argc, char** argv)
  
   // Do the query and print results
   double last_receipt_time_secs=ros::WallTime::now().toSec();
-  bool print_query = true;
+  bool print_query = vm.count("verbose")>0;
   while (true)
   {
     BOOST_FOREACH (LogItem::ConstPtr l, logger->filterMessages(criteria,
@@ -223,10 +227,10 @@ int main (int argc, char** argv)
         time_info->tm_sec;
       if (color)
         cout << "\033[1;31m";
-      cout << " [" << l->msg.name << "] ";
+      cout << " [" << l->msg->name << "] ";
       if (color)
         cout << "\033[0m";
-      cout << l->msg.msg << endl;
+      cout << l->msg->msg << endl;
     }
     if (vm.count("tail")==0)
       break;

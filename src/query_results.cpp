@@ -103,11 +103,11 @@ LogItem::ConstPtr ResultIterator::dereference() const
  
   BSONObj msg_item = message_cursor->next();
   ROS_ASSERT(msg_item.hasField("text"));
-  l->msg.msg = msg_item.getStringField("text");
+  l->msg->msg = msg_item.getStringField("text");
 
   BSONObj node_item = node_cursor->next();
   ROS_ASSERT(node_item.hasField("name"));
-  l->msg.name = node_item.getStringField("name");
+  l->msg->name = node_item.getStringField("name");
   return l;
 }
 
