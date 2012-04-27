@@ -13,6 +13,9 @@ Library for logging various info about robot execution to a database
   <depend package="roscpp"/>
   <depend package="actionlib_msgs"/>
   <depend package="pymongo"/>
+  <depend package="sensor_msgs"/>
+  <depend package="geometry_msgs"/>
+  <depend package="tf"/>
 
 </package>
 

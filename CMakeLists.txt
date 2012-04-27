@@ -42,6 +42,8 @@ rosbuild_add_executable(grep_log src/grep_log.cpp)
 target_link_libraries(grep_log ros_logging)
 rosbuild_link_boost(grep_log program_options)
 
+rosbuild_add_executable(robot_state_logger src/robot_state_logger.cpp)
+
 set(TARGETS ros_logging rosout_logger grep_log)
 
 foreach(target ${TARGETS})
