@@ -51,6 +51,7 @@ using std::cerr;
 using std::cout;
 using std::endl;
 using std::string;
+using std::set;
 using ros_logging::LogItem;
 using ros_logging::MongoLogger;
 using boost::algorithm::trim_copy;
@@ -98,6 +99,8 @@ int main (int argc, char** argv)
     ("max_age,x", po::value<int>(), "Maximum age (in minutes)")
     ("tail,t", "Requires max_age to also be provided; after initial query, "
      "continue running and display new messages as they come in")
+    ("list_nodes,o", "Just list all node names that have messages saved in"
+     " the given time interval")
     ("start_session,s", "Requires max_age or after to be provide.  Writes"
      " the corresponding time to /tmp/ros_logging_session_start.  It will "
      "be used by future calls to grep_log unless ignore_session is specified.")
@@ -156,7 +159,7 @@ int main (int argc, char** argv)
     }
   }
   /*
-  if (vm.count("limit_recent"))
+    if (vm.count("limit_recent"))
     criteria.limit_recent = vm["limit_recent"].as<int>();
   */
   if (vm.count("message_regex"))
@@ -209,28 +212,47 @@ int main (int argc, char** argv)
   // Do the query and print results
   double last_receipt_time_secs=ros::WallTime::now().toSec();
   bool print_query = vm.count("verbose")>0;
+  set<string> seen_nodes;
+
+  // Outer loop to handle the -t case.  Will only run once if -t not specified.
   while (true)
   {
+
+    // Inner loop over messages satisfying query.  
     BOOST_FOREACH (LogItem::ConstPtr l, logger->filterMessages(criteria,
-                                                              print_query))
+                                                               print_query))
     {
-      struct tm* time_info;
-      last_receipt_time_secs = l->receipt_time.toSec();
-      time_t last_receipt_time = int(last_receipt_time_secs);
-      time_info = localtime(&last_receipt_time);
+      // Special case where we're just listing nodes
+      if (vm.count("list_nodes")>0)
+      {
+        if (seen_nodes.find(l->msg->name)==seen_nodes.end())
+        {
+          cout << l->msg->name << endl;
+          seen_nodes.insert(l->msg->name);
+        }
+      }
+
+      // Normal case where we're printing messages
+      else
+      {
+        struct tm* time_info;
+        last_receipt_time_secs = l->receipt_time.toSec();
+        time_t last_receipt_time = int(last_receipt_time_secs);
+        time_info = localtime(&last_receipt_time);
     
-      cout << time_info->tm_year+1900 << "-" << setfill('0') << setw(2) <<
-        time_info->tm_mon << "-" << setfill('0') << setw(2) <<
-        time_info->tm_mday << " " << setfill('0') << setw(2) <<
-        time_info->tm_hour << ":" << setfill('0') << setw(2) <<
-        time_info->tm_min << ":" << setfill('0') << setw(2) << 
-        time_info->tm_sec;
-      if (color)
-        cout << "\033[1;31m";
-      cout << " [" << l->msg->name << "] ";
-      if (color)
-        cout << "\033[0m";
-      cout << l->msg->msg << endl;
+        cout << time_info->tm_year+1900 << "-" << setfill('0') << setw(2) <<
+          time_info->tm_mon << "-" << setfill('0') << setw(2) <<
+          time_info->tm_mday << " " << setfill('0') << setw(2) <<
+          time_info->tm_hour << ":" << setfill('0') << setw(2) <<
+          time_info->tm_min << ":" << setfill('0') << setw(2) << 
+          time_info->tm_sec;
+        if (color)
+          cout << "\033[1;31m";
+        cout << " [" << l->msg->name << "] ";
+        if (color)
+          cout << "\033[0m";
+        cout << l->msg->msg << endl;
+      }
     }
     if (vm.count("tail")==0)
       break;
