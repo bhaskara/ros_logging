@@ -21,7 +21,7 @@ Args:
 <arg name="db_path" default="/tmp/mongo"/>
 
 <node if="$(arg run_db)" pkg="mongodb" type="wrapper.py" name="mongodb"
-      output="screen">
+      output="screen" required="true">
   <param name="database_path" value="$(arg db_path)"/>
   <param name="overwrite" value="false"/>
 </node>

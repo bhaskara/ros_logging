@@ -210,6 +210,7 @@ Node::Node () :
   conn_->ensureIndex(diff_coll_, BSON("receipt_time" << 1));
   conn_->ensureIndex(diff_coll_, BSON("keyframe" << 1));
   conn_->ensureIndex(diff_coll_, BSON("pose" << "2d"));
+  ROS_INFO ("Robot state logger initialized");
 }
 
 gm::Pose::ConstPtr Node::getBasePose (const ros::Time& t)
@@ -288,7 +289,9 @@ Diffs Node::getDiffs (const RobotState& last, const RobotState& current)
       cerr << "Keyframe interval elapsed, so saving entire joint state" << endl;
     diffs.is_keyframe = true;
     for (size_t i=0; i<current.joint_state->position.size(); i++)
+    {
       diffs.new_joint_states.push_back(Diff(i, current.joint_state->position[i]));
+    }
     diffs.pose_diff = true;
     diffs.new_pose = current.pose;
   }
@@ -297,7 +300,8 @@ Diffs Node::getDiffs (const RobotState& last, const RobotState& current)
     for (size_t i=0; i<current.joint_state->position.size(); i++)
     {
       if (fabs(current.joint_state->position[i]-
-               last.joint_state->position[i])>distance_threshold_)
+               last.joint_state->position[i])>distance_threshold_ &&
+          !joint_ignored_[i])
       {
         cerr << "Joint " << current.joint_state->name[i] << " value " <<
           current.joint_state->position[i] << " differs from " <<
