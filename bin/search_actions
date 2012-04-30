@@ -75,6 +75,8 @@ def main(argv=sys.argv):
                         help="Max age in minutes of goal receipt")
     parser.add_argument('--min_age', '-m', dest='min_age', type=int,
                         help="Min age in minutes of goal receipt")
+    parser.add_argument('--show_goal', '-o', dest='omit_goal', default=False,
+                        help="Whether to print goal messages", action='store_true')
     parser.add_argument('--verbose', '-v', dest='verbose', type=bool,
                         help="Whether to print debugging info")
 
@@ -103,11 +105,11 @@ def main(argv=sys.argv):
     for x in action_coll.find(q):
         msg = classes[x['action_id']]()
         msg.deserialize(x['blob'])
-        print("---\nAction: {0}\nGoal time: {1}\nResult time: {2}\n"\
-              "Result status: {4}\n{3}".\
+        print("---\nAction: {0}\nGoal time: {1}\nResult time: {2}\nStatus: {3}".\
               format(names[x['action_id']], format_timestamp(x['goal_time']),
-                     format_timestamp(x['result_time']),
-                     msg, STATUSES[x['status']]))
+                     format_timestamp(x['result_time']), STATUSES[x['status']]))
+        if not args.omit_goal:
+            print(msg)
 
 if __name__=='__main__':
     sys.exit(main())
