@@ -41,6 +41,8 @@
 #include <tf/transform_listener.h>
 #include <boost/foreach.hpp>
 #include <boost/thread.hpp>
+#include <boost/format.hpp>
+#include <mongo/client/dbclient.h>
 
 namespace ros_logging
 {
@@ -51,8 +53,13 @@ namespace gm=geometry_msgs;
 using std::vector;
 using std::string;
 using std::pair;
+using mongo::BSONObj;
+using mongo::BSONObjBuilder;
+using mongo::BSONArrayBuilder;
 
 typedef boost::mutex::scoped_lock Lock;
+typedef boost::shared_ptr<mongo::DBClientConnection> ConnPtr;
+
 
 // Represents the joint angles and base position
 struct RobotState
@@ -114,6 +121,7 @@ private:
   const std::string base_frame_;
   const std::string fixed_frame_;
   vector<bool> joint_ignored_;
+  const string diff_coll_;
   
   // Distance threshold for considering two joint angles to be the same
   // Note that this isn't quite right due to the existence of translational
@@ -125,6 +133,7 @@ private:
   RobotState last_saved_state_;
 
   tf::TransformListener tf_;
+  ConnPtr conn_;
   ros::Subscriber state_sub_;
 
 };
@@ -133,11 +142,46 @@ private:
 void Node::saveToDB (const Diffs& diffs)
 {
   ROS_INFO ("Saving pose to db");
+  BSONObjBuilder builder;
+
+  // Add joint state diffs
+  BSONArrayBuilder ind_builder, pos_builder;
+  BOOST_FOREACH (const Diff& d, diffs.new_joint_states) 
+  {
+    ind_builder.append(d.first);
+    pos_builder.append(d.second);
+  }
+  builder.append("indices", ind_builder.arr());
+  builder.append("positions", pos_builder.arr());
+
+  // Pose diff if necessary
+  if (diffs.pose_diff)
+  {
+    builder.append("pose_diff", true);
+    if (diffs.new_pose.get())
+    {
+      builder.append("x", diffs.new_pose->position.x);
+      builder.append("y", diffs.new_pose->position.y);
+      builder.append("theta", tf::getYaw(diffs.new_pose->orientation));
+    }
+  }
+  conn_->insert(diff_coll_, builder.obj());
+}
+
+// Internal function to connect to the mongo instance
+// Can throw a Mongo exception if connection fails
+ConnPtr createConnection (const string& host, const unsigned port)
+{
+  const string address = (boost::format("%1%:%2%") % host % port).str();
+  ConnPtr conn(new mongo::DBClientConnection());
+  conn->connect(address);
+  return conn;
 }
 
 Node::Node () :
   processing_interval_(0.1), base_frame_("base_footprint"),
-  fixed_frame_("map"), distance_threshold_(0.01),
+  fixed_frame_("map"), diff_coll_("ros_logging.robot_state_log"),
+  distance_threshold_(0.01), conn_(createConnection("localhost", 27017)),
   state_sub_(nh_.subscribe("joint_states", 1, &Node::jointStateCB, this))
 {
   
@@ -224,6 +268,7 @@ Diffs Node::getDiffs (const RobotState& last, const RobotState& current)
                last.joint_state->position[i])<distance_threshold_)
         diffs.new_joint_states.push_back(Diff(i, current.joint_state->position[i]));
     }
+
     if ((current.pose.get() && !last.pose.get()) ||
         (!current.pose.get() && last.pose.get()) ||
         ((current.pose.get() && last.pose.get() &&
