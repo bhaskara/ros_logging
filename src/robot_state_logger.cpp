@@ -51,6 +51,8 @@ namespace sm=sensor_msgs;
 namespace gm=geometry_msgs;
 
 using std::vector;
+using std::cerr;
+using std::endl;
 using std::string;
 using std::pair;
 using mongo::BSONObj;
@@ -90,7 +92,10 @@ struct Diffs
   // new_pose is only considered if pose_diff is true
   // It can be empty if the new pose is unknown
   bool pose_diff;
+  bool is_keyframe;
   gm::Pose::ConstPtr new_pose;
+
+  Diffs () : pose_diff(false), is_keyframe(false) {}
 };
 
 
@@ -118,6 +123,7 @@ private:
   boost::mutex mutex_;
 
   const ros::Duration processing_interval_;
+  const ros::Duration keyframe_interval_;
   const std::string base_frame_;
   const std::string fixed_frame_;
   vector<bool> joint_ignored_;
@@ -130,6 +136,7 @@ private:
   const double distance_threshold_;
 
   ros::Time last_processed_;
+  ros::Time last_keyframe_;
   RobotState last_saved_state_;
 
   tf::TransformListener tf_;
@@ -141,15 +148,16 @@ private:
 
 void Node::saveToDB (const Diffs& diffs)
 {
-  ROS_INFO ("Saving pose to db");
+  bool need_to_save = false;
   BSONObjBuilder builder;
 
   // Add joint state diffs
   BSONArrayBuilder ind_builder, pos_builder;
   BOOST_FOREACH (const Diff& d, diffs.new_joint_states) 
   {
-    ind_builder.append(d.first);
+    ind_builder.append(int(d.first));
     pos_builder.append(d.second);
+    need_to_save = true;
   }
   builder.append("indices", ind_builder.arr());
   builder.append("positions", pos_builder.arr());
@@ -157,15 +165,29 @@ void Node::saveToDB (const Diffs& diffs)
   // Pose diff if necessary
   if (diffs.pose_diff)
   {
+    need_to_save = true;
     builder.append("pose_diff", true);
     if (diffs.new_pose.get())
     {
-      builder.append("x", diffs.new_pose->position.x);
-      builder.append("y", diffs.new_pose->position.y);
-      builder.append("theta", tf::getYaw(diffs.new_pose->orientation));
+      // Store the pose as an array [x,y,theta] so we can create a 
+      // 2d geospatial index over it
+      BSONArrayBuilder pose_builder;
+      pose_builder.append(diffs.new_pose->position.x);
+      pose_builder.append(diffs.new_pose->position.y);
+      pose_builder.append(tf::getYaw(diffs.new_pose->orientation));
+      builder.append("pose", pose_builder.arr());
     }
   }
-  conn_->insert(diff_coll_, builder.obj());
+
+  if (need_to_save)
+  {
+    builder.append("receipt_time", ros::WallTime::now().toSec());
+    if (diffs.is_keyframe)
+      builder.append("keyframe", true);
+    BSONObj item = builder.obj();
+    cerr << "Inserting " << item.toString().c_str() << endl;
+    conn_->insert(diff_coll_, item);
+  }
 }
 
 // Internal function to connect to the mongo instance
@@ -179,12 +201,15 @@ ConnPtr createConnection (const string& host, const unsigned port)
 }
 
 Node::Node () :
-  processing_interval_(0.1), base_frame_("base_footprint"),
-  fixed_frame_("map"), diff_coll_("ros_logging.robot_state_log"),
+  processing_interval_(0.1), keyframe_interval_(60.0),
+  base_frame_("base_footprint"), fixed_frame_("map"),
+  diff_coll_("ros_logging.robot_state_log"),
   distance_threshold_(0.01), conn_(createConnection("localhost", 27017)),
   state_sub_(nh_.subscribe("joint_states", 1, &Node::jointStateCB, this))
 {
-  
+  conn_->ensureIndex(diff_coll_, BSON("receipt_time" << 1));
+  conn_->ensureIndex(diff_coll_, BSON("keyframe" << 1));
+  conn_->ensureIndex(diff_coll_, BSON("pose" << "2d"));
 }
 
 gm::Pose::ConstPtr Node::getBasePose (const ros::Time& t)
@@ -251,10 +276,17 @@ float poseDistance (const gm::Pose& p1, const gm::Pose& p2)
 Diffs Node::getDiffs (const RobotState& last, const RobotState& current)
 {
   Diffs diffs;
+  const ros::Time now = ros::Time::now();;
   
   // Use the fact that JointState is empty iff this is the first time around
-  if (last.isEmpty())
+  if (last.isEmpty() || now >= last_keyframe_+keyframe_interval_)
   {
+    last_keyframe_ = now;
+    if (last.isEmpty())
+      cerr << "Last is empty, so using all diffs" << endl;
+    else
+      cerr << "Keyframe interval elapsed, so saving entire joint state" << endl;
+    diffs.is_keyframe = true;
     for (size_t i=0; i<current.joint_state->position.size(); i++)
       diffs.new_joint_states.push_back(Diff(i, current.joint_state->position[i]));
     diffs.pose_diff = true;
@@ -265,8 +297,13 @@ Diffs Node::getDiffs (const RobotState& last, const RobotState& current)
     for (size_t i=0; i<current.joint_state->position.size(); i++)
     {
       if (fabs(current.joint_state->position[i]-
-               last.joint_state->position[i])<distance_threshold_)
+               last.joint_state->position[i])>distance_threshold_)
+      {
+        cerr << "Joint " << current.joint_state->name[i] << " value " <<
+          current.joint_state->position[i] << " differs from " <<
+          last.joint_state->position[i] << endl;
         diffs.new_joint_states.push_back(Diff(i, current.joint_state->position[i]));
+      }
     }
 
     if ((current.pose.get() && !last.pose.get()) ||
@@ -274,6 +311,8 @@ Diffs Node::getDiffs (const RobotState& last, const RobotState& current)
         ((current.pose.get() && last.pose.get() &&
           poseDistance(*current.pose, *last.pose)>distance_threshold_)))
     {
+      cerr << "Current pose: " << (bool)current.pose.get() << "; last pose: "
+           << (bool)last.pose.get() << endl;
       diffs.pose_diff = true;
       diffs.new_pose = current.pose;
     }
