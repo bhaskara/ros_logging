@@ -144,7 +144,7 @@ vector<int> MongoLogger::getMatchingMessages (const string& regex,
 {
   boost::format query_fmt("{ text : /%1%/i , level: {$gte: %2%} }");
   std::string query_string = (query_fmt % regex % min_level).str();
-  //ROS_INFO ("Message query is %s", query_string.c_str());
+  ROS_INFO ("Message query is %s", query_string.c_str());
   BSONObj query = mongo::fromjson(query_string);
   CursorAutoPtr cursor = conn_->query(message_coll_, query);
   vector<int> messages;
