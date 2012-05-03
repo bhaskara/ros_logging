@@ -91,6 +91,8 @@ double getSessionStart ()
 int main (int argc, char** argv)
 {
   po::options_description desc("Allowed options");
+  string hostname;
+  int port;
   desc.add_options()
     ("help,h", "Display help message")
     ("before,b", po::value<int>(), "Latest timestamp (unix time)")
@@ -104,6 +106,10 @@ int main (int argc, char** argv)
     ("start_session,s", "Requires max_age or after to be provide.  Writes"
      " the corresponding time to /tmp/ros_logging_session_start.  It will "
      "be used by future calls to grep_log unless ignore_session is specified.")
+    ("db_host,z", po::value<string>(&hostname)->default_value("localhost"),
+     "Hostname for the DB server.  Defaults to localhost.")
+    ("db_port,p", po::value<int>(&port)->default_value(27017),
+     "Port for DB server.  Defaults to 27017")
     ("ignore_session,i", "Ignore stored session start time info")
     ("message_regex,m", po::value<string>(),
      "Regular expression that message must match")
@@ -121,7 +127,7 @@ int main (int argc, char** argv)
     cout << desc << endl;
     return 1;
   }
-
+  
   // Build up the message filter based on command line options
   MongoLogger::MessageCriteria criteria;
   ros::WallTime now = ros::WallTime::now();
@@ -194,7 +200,10 @@ int main (int argc, char** argv)
   // Connect to the db
   try
   {
-    logger.reset(new MongoLogger("ros_logging"));
+    logger.reset(new MongoLogger("ros_logging", hostname, port));
+    if (vm.count("verbose"))
+      cerr << "Connected to db at " << hostname << ":" <<
+        port << endl;
   }
   catch (mongo::ConnectException& e)
   {

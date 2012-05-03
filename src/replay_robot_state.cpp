@@ -40,6 +40,10 @@
 #include <robot_state_publisher/robot_state_publisher.h>
 #include <tf/transform_broadcaster.h>
 #include <boost/optional.hpp>
+#include <mongo/client/dbclient.h>
+#include <boost/program_options.hpp>
+
+namespace po=boost::program_options;
 
 using std::cerr;
 using std::endl;
@@ -59,7 +63,7 @@ class Node
 {
 public:
   
-  Node ();
+  Node (const string& hostname, int port);
 
   /// Replay the robot states and poses between times \a t1 and \a t2
   /// Higher values of \a rate -> faster playback.  Times refer to
@@ -91,10 +95,10 @@ ConnPtr createConnection (const string& host, const unsigned port)
   return conn;
 }
 
-Node::Node() :
+Node::Node(const string& hostname, int port) :
   coll_("ros_logging.robot_state_log"),
   time_inc_(0.1), 
-  conn_(createConnection("localhost", 27017))
+  conn_(createConnection(hostname, port))
 {}
 
 double Node::lastKeyframeBefore(const unsigned t)
@@ -122,15 +126,16 @@ public:
   // or an empty value if the message should be skipped, either because
   // it's in the same time window as an already published message, or because
   // it's too late to publish this one.
-  optional<double> waitTime (double t)
+  optional<double> waitTime (double t, double now)
   {
     const int ind = int(floor((t-earliest_receipt_time_)/(rate_*inc_)));
+    ROS_INFO ("Ind is %d", ind);
     if (ind>last_ind_)
     {
       last_ind_ = ind;
       const double publish_at = playback_start_time_+ind*inc_;
-      if (publish_at > t)
-        return publish_at-t;
+      if (publish_at > now)
+        return publish_at-now;
     }
     return optional<double>();
   }
@@ -159,8 +164,7 @@ void Node::replay (const unsigned t1, const unsigned t2, const double rate)
   cerr << "Final query is: " << query.toString() << endl;
   auto_ptr<mongo::DBClientCursor> cursor = conn_->query(coll_, query);
 
-  ros::WallTime now = ros::WallTime::now();
-  TimeWarper warper(now.toSec(), t1, t2, rate, time_inc_);
+  TimeWarper warper(ros::WallTime::now().toSec(), t1, t2, rate, time_inc_);
   RobotState state;
 
   // Loop over items satisfying the query
@@ -168,15 +172,17 @@ void Node::replay (const unsigned t1, const unsigned t2, const double rate)
   {
     BSONObj item = cursor->next();
     const double t = item.getField("receipt_time").numberDouble();
+    ROS_INFO("Considering item with stamp %.4f", t);
     state.update(item);
     if (t<t1)
       // We start at t_key<t1 because we need to start at a keyframe
       // Items with t<t1 are only used to update the state, and then we move on
       continue;
     
-    optional<double> wait = warper.waitTime(t);
+    optional<double> wait = warper.waitTime(t, ros::WallTime::now().toSec());
     if (wait)
     {
+      ROS_INFO ("Waiting for %.4f seconds", *wait);
       ros::WallDuration(*wait).sleep();
       ROS_INFO ("Would now publish message with stamp %.4f", t);
     }
@@ -186,13 +192,13 @@ void Node::replay (const unsigned t1, const unsigned t2, const double rate)
 } // namespace
 
 
-time_t parseTime (const char* str)
+time_t parseTime (const string& str)
 {
   time_t current;
   time(&current);
   struct tm* t;
   t = localtime(&current);
-  strptime(str, "%H:%M:%S", t);
+  strptime(str.c_str(), "%H:%M:%S", t);
   return mktime(t);
 
 }
@@ -200,16 +206,34 @@ time_t parseTime (const char* str)
 int main (int argc, char** argv)
 {
   ros::init(argc, argv, "replay_robot_state");
-  if (argc!=3)
+
+  po::options_description desc("Allowed options");
+  string hostname;
+  int port;
+  string start_time, end_time;
+
+  desc.add_options()
+    ("help,h", "Display help message")
+    ("start_time,s", po::value<string>(&start_time), "Start time (HH:MM:SS)")
+    ("end_time,e", po::value<string>(&end_time), "End time (HH:MM:SS)")
+    ("hostname,z", po::value<string>(&hostname)->default_value("localhost"),
+     "Hostname for db server.  Defaults to localhost")
+    ("port,p", po::value<int>(&port)->default_value(27017),
+     "Port for db server.  Defaults to 27017");
+  po::variables_map vm;
+  po::store(po::parse_command_line(argc, argv, desc), vm);
+  po::notify(vm);
+
+  if (vm.count("help"))
   {
-    cerr << "Usage: " << argv[0] << " START_TIME END_TIME" << endl;
+    cout << desc << endl;
     return 1;
   }
 
   // Parse times
-  time_t t1 = parseTime(argv[1]);
-  time_t t2 = parseTime(argv[2]);
-  ros_logging::Node node;
+  time_t t1 = 1335820120; //parseTime(start_time);
+  time_t t2 = 1335900000; //parseTime(end_time);
+  ros_logging::Node node(hostname, port);
   node.replay(t1, t2, 3.0);
   return 0;
 }
