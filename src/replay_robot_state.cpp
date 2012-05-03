@@ -36,9 +36,10 @@
  * \author Bhaskara Marthi
  */
 
+#include "robot_state.h"
 #include <robot_state_publisher/robot_state_publisher.h>
 #include <tf/transform_broadcaster.h>
-#include <mongo/client/dbclient.h>
+#include <boost/optional.hpp>
 
 using std::cerr;
 using std::endl;
@@ -46,11 +47,13 @@ using std::string;
 using mongo::BSONObj;
 using mongo::BSONObjBuilder;
 using mongo::fromjson;
+using boost::optional;
 
 typedef boost::shared_ptr<mongo::DBClientConnection> ConnPtr;
 
 namespace ros_logging
 {
+
 
 class Node
 {
@@ -58,9 +61,16 @@ public:
   
   Node ();
 
-  void replay (time_t t1, time_t t2, double rate);
+  /// Replay the robot states and poses between times \a t1 and \a t2
+  /// Higher values of \a rate -> faster playback.  Times refer to
+  /// wall time when the state was received, not ROS time (this only matters
+  /// when the global use_sim_time ROS parameter is true).
+  void replay (unsigned t1, unsigned t2, double rate);
   
 private:
+
+  /// Return the receipt time of the last key frame that is <= t
+  double lastKeyframeBefore (unsigned t);
 
   ros::NodeHandle nh_;
 
@@ -87,35 +97,88 @@ Node::Node() :
   conn_(createConnection("localhost", 27017))
 {}
 
-void Node::replay (const time_t t1, const time_t t2, const double rate)
+double Node::lastKeyframeBefore(const unsigned t)
 {
-  ROS_INFO_STREAM ("Starting playback from " << t1 << " to " << t2 << endl);
+  return t;
+}
 
+// We're going to be playing back messages received between t1 and t2, at
+// some rate; we're also going to be skipping messages to ensure that we
+// publish at most one message every inc seconds.  This class wraps all of
+// that logic and related state.
+class TimeWarper
+{
+public:
+  TimeWarper (double playback_start_time, double earliest_receipt_time,
+              double latest_receipt_time, double rate, double inc) :
+    playback_start_time_(playback_start_time),
+    earliest_receipt_time_(earliest_receipt_time),
+    latest_receipt_time_(latest_receipt_time), rate_(rate), inc_(inc),
+    last_ind_(-1)
+  {}
+
+  // Given a new message with timestamp t, and given current time,
+  // return how long, in seconds, to wait before publishing the message,
+  // or an empty value if the message should be skipped, either because
+  // it's in the same time window as an already published message, or because
+  // it's too late to publish this one.
+  optional<double> waitTime (double t)
+  {
+    const int ind = int(floor((t-earliest_receipt_time_)/(rate_*inc_)));
+    if (ind>last_ind_)
+    {
+      last_ind_ = ind;
+      const double publish_at = playback_start_time_+ind*inc_;
+      if (publish_at > t)
+        return publish_at-t;
+    }
+    return optional<double>();
+  }
+
+private:
+  const double playback_start_time_;
+  const double earliest_receipt_time_;
+  const double latest_receipt_time_;
+  const double rate_;
+  const double inc_;
+  int last_ind_;
+};
+
+void Node::replay (const unsigned t1, const unsigned t2, const double rate)
+{
+  const unsigned t_key = lastKeyframeBefore(t1);
+  ROS_INFO_STREAM ("Starting playback from " << t1 << " to " << t2 << endl);
+  
   // Generate the query
-  BSONObj cond = BSON("$gte" << unsigned(t1) << "$lte" << unsigned(t2));
+  BSONObj cond = BSON("$gte" << unsigned(t_key) << "$lte" << unsigned(t2));
   BSONObj q = BSON("receipt_time" << cond);
   BSONObjBuilder b;
   b.append("query", q);
   b.append("orderby", BSON("receipt_time" << 1));
   BSONObj query = b.obj();
   cerr << "Final query is: " << query.toString() << endl;
-  
   auto_ptr<mongo::DBClientCursor> cursor = conn_->query(coll_, query);
 
-  ros::WallTime t0 = ros::WallTime::now();
-  int last_ind = -1;
-  while (cursor->more() && ros::ok()
+  ros::WallTime now = ros::WallTime::now();
+  TimeWarper warper(now.toSec(), t1, t2, rate, time_inc_);
+  RobotState state;
+
+  // Loop over items satisfying the query
+  while (cursor->more() && ros::ok())
   {
     BSONObj item = cursor->next();
     const double t = item.getField("receipt_time").numberDouble();
-    int ind = int(floor((t-t1)/(rate*time_inc_)));
-    if (ind>last_ind)
+    state.update(item);
+    if (t<t1)
+      // We start at t_key<t1 because we need to start at a keyframe
+      // Items with t<t1 are only used to update the state, and then we move on
+      continue;
+    
+    optional<double> wait = warper.waitTime(t);
+    if (wait)
     {
-      last_ind = ind;
-      ros::WallTime publish_at(t0+ros::WallDuration(ind*time_inc_));
-      ros::WallDuration w = publish_at-ros::WallTime::now();
-      if (w.toSec()>0)
-        w.sleep();
+      ros::WallDuration(*wait).sleep();
+      ROS_INFO ("Would now publish message with stamp %.4f", t);
     }
   }
 }

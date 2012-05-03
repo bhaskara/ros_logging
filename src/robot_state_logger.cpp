@@ -32,17 +32,24 @@
  * \file 
  * 
  * Ros node that logs robot joint states and possibly position of robot in world
+ * 
+ * Requires;
+ * - tf transform between base_footprint and map
+ * - incoming messages on topic joint_states of type sensor_msgs/JointState
+ * - running mongo db instance on localhost:27017
+ *
+ * Provides:
+ * - saved joint state information in ros_logging.robot_state_log
  *
  * \author Bhaskara Marthi
  */
 
+#include "robot_state.h"
 #include <ros/ros.h>
-#include <sensor_msgs/JointState.h>
 #include <tf/transform_listener.h>
 #include <boost/foreach.hpp>
 #include <boost/thread.hpp>
 #include <boost/format.hpp>
-#include <mongo/client/dbclient.h>
 
 namespace ros_logging
 {
@@ -63,25 +70,6 @@ typedef boost::mutex::scoped_lock Lock;
 typedef boost::shared_ptr<mongo::DBClientConnection> ConnPtr;
 
 
-// Represents the joint angles and base position
-struct RobotState
-{
-  RobotState (sm::JointState::ConstPtr js, gm::Pose::ConstPtr pose) :
-    joint_state(js), pose(pose)
-  {}
-
-  RobotState ()
-  {}
-
-  bool isEmpty() const
-  {
-    return !(joint_state.get());
-  }
-  
-  sm::JointState::ConstPtr joint_state;
-  gm::Pose::ConstPtr pose;
-};
-
 typedef pair<size_t, float> Diff;
 
 // Represents diffs between successive states
@@ -90,7 +78,7 @@ struct Diffs
   vector<Diff> new_joint_states;
   
   // new_pose is only considered if pose_diff is true
-  // It can be empty if the new pose is unknown
+  // It can be empty if the new pose is unknown (due to tf errors)
   bool pose_diff;
   bool is_keyframe;
   gm::Pose::ConstPtr new_pose;
@@ -148,7 +136,10 @@ private:
 
 void Node::saveToDB (const Diffs& diffs)
 {
-  bool need_to_save = false;
+  // Will be set to true below if at least one thing has changed
+  bool need_to_save = diffs.is_keyframe;
+  
+  ros::WallTime now = ros::WallTime::now();
   BSONObjBuilder builder;
 
   // Add joint state diffs
@@ -181,7 +172,7 @@ void Node::saveToDB (const Diffs& diffs)
 
   if (need_to_save)
   {
-    builder.append("receipt_time", ros::WallTime::now().toSec());
+    builder.append("receipt_time", now.toSec());
     if (diffs.is_keyframe)
       builder.append("keyframe", true);
     BSONObj item = builder.obj();
