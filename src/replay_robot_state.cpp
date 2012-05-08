@@ -51,6 +51,7 @@ using std::endl;
 using std::string;
 using mongo::BSONObj;
 using mongo::BSONObjBuilder;
+using mongo::BSONElement;
 using mongo::fromjson;
 using boost::optional;
 
@@ -79,6 +80,9 @@ private:
   
   /// Send out a tf message for a base pose
   void publishBasePose (const gm::Pose& p);
+  
+  /// Read the joint names upon startup
+  vector<string> getNames ();
 
   ros::NodeHandle nh_;
 
@@ -121,6 +125,22 @@ void Node::publishBasePose (const gm::Pose& p)
   tfb_.sendTransform(trans);
 }
 
+vector<string> Node::getNames ()
+{
+  const string coll = "ros_logging.joint_state_names";
+  BSONObj query = mongo::fromjson("{}");
+  auto_ptr<mongo::DBClientCursor> cursor = conn_->query(coll, query);
+  ROS_ASSERT_MSG(cursor->more(), "ros_logging.joint_state_names was empty");
+  BSONObj item = cursor->next();
+  BSONElement elt = item.getField("names");
+  vector<BSONElement> names = elt.Array();
+  vector<string> joint_names(names.size());
+  for (size_t i=0; i<names.size(); i++)
+    joint_names[i] = names[i].String();
+  return joint_names;
+}
+  
+
 void Node::replay (const unsigned t1, const unsigned t2, const double rate)
 {
   const unsigned t_key = lastKeyframeBefore(t1);
@@ -138,6 +158,7 @@ void Node::replay (const unsigned t1, const unsigned t2, const double rate)
 
   TimeWarper warper(ros::WallTime::now().toSec(), t1, t2, rate, time_inc_);
   RobotState state;
+  state.initializeJointState(getNames());
 
   // Loop over items satisfying the query
   while (cursor->more() && ros::ok())

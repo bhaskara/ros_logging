@@ -59,6 +59,7 @@ struct RobotState
 
   bool isEmpty() const;
   void update (mongo::BSONObj b);
+  void initializeJointState (const std::vector<std::string>& names);
 
   sm::JointState::ConstPtr joint_state;
   gm::Pose::ConstPtr pose;

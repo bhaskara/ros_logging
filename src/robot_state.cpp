@@ -47,6 +47,7 @@ using std::endl;
 using std::cout;
 
 using std::vector;
+using std::string;
 
 using mongo::BSONElement;
 using mongo::BSONObj;
@@ -69,7 +70,6 @@ gm::Pose::ConstPtr getPose (mongo::BSONObj b)
     const double x = p[0].Double();
     const double y = p[1].Double();
     const double th = p[2].Double();
-    cerr << "Has pose (" << x << ", " << y << ", " << th << ")\n";
     gm::Pose::Ptr pose(new gm::Pose());
     pose->position.x = x;
     pose->position.y = y;
@@ -78,15 +78,20 @@ gm::Pose::ConstPtr getPose (mongo::BSONObj b)
   }
 }
 
+void RobotState::initializeJointState (const vector<string>& names)
+{
+  sm::JointState js;
+  js.name = names;
+  joint_state.reset(new sm::JointState(js));
+  cerr << "Initialized joint state to " << *joint_state << endl;
+}
+
 // Update given a BSONObj representing diffs
 void RobotState::update(BSONObj b)
 {
+  ROS_ASSERT(!isEmpty());
   if (!b.getField("pose_diff").eoo())
     pose = getPose(b);
-  if (isEmpty())
-  {
-    //joint_state.initialize();
-  }
   /*
   for (size_t i=0; i<b.indices.size(); i++)
   {
