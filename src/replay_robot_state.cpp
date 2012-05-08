@@ -36,6 +36,7 @@
  * \author Bhaskara Marthi
  */
 
+#include "time_warper.h"
 #include "robot_state.h"
 #include <robot_state_publisher/robot_state_publisher.h>
 #include <tf/transform_broadcaster.h>
@@ -75,6 +76,9 @@ private:
 
   /// Return the receipt time of the last key frame that is <= t
   double lastKeyframeBefore (unsigned t);
+  
+  /// Send out a tf message for a base pose
+  void publishBasePose (const gm::Pose& p);
 
   ros::NodeHandle nh_;
 
@@ -82,6 +86,7 @@ private:
   const double time_inc_;
 
   ConnPtr conn_;
+  tf::TransformBroadcaster tfb_;
 
 };
 
@@ -106,48 +111,15 @@ double Node::lastKeyframeBefore(const unsigned t)
   return t;
 }
 
-// We're going to be playing back messages received between t1 and t2, at
-// some rate; we're also going to be skipping messages to ensure that we
-// publish at most one message every inc seconds.  This class wraps all of
-// that logic and related state.
-class TimeWarper
+void Node::publishBasePose (const gm::Pose& p)
 {
-public:
-  TimeWarper (double playback_start_time, double earliest_receipt_time,
-              double latest_receipt_time, double rate, double inc) :
-    playback_start_time_(playback_start_time),
-    earliest_receipt_time_(earliest_receipt_time),
-    latest_receipt_time_(latest_receipt_time), rate_(rate), inc_(inc),
-    last_ind_(-1)
-  {}
-
-  // Given a new message with timestamp t, and given current time,
-  // return how long, in seconds, to wait before publishing the message,
-  // or an empty value if the message should be skipped, either because
-  // it's in the same time window as an already published message, or because
-  // it's too late to publish this one.
-  optional<double> waitTime (double t, double now)
-  {
-    const int ind = int(floor((t-earliest_receipt_time_)/(rate_*inc_)));
-    ROS_INFO ("Ind is %d", ind);
-    if (ind>last_ind_)
-    {
-      last_ind_ = ind;
-      const double publish_at = playback_start_time_+ind*inc_;
-      if (publish_at > now)
-        return publish_at-now;
-    }
-    return optional<double>();
-  }
-
-private:
-  const double playback_start_time_;
-  const double earliest_receipt_time_;
-  const double latest_receipt_time_;
-  const double rate_;
-  const double inc_;
-  int last_ind_;
-};
+  tf::StampedTransform trans;
+  tf::poseMsgToTF(p, trans);
+  trans.stamp_ = ros::Time::now();
+  trans.frame_id_ = "map";
+  trans.child_frame_id_ = "base_footprint";
+  tfb_.sendTransform(trans);
+}
 
 void Node::replay (const unsigned t1, const unsigned t2, const double rate)
 {
@@ -185,6 +157,8 @@ void Node::replay (const unsigned t1, const unsigned t2, const double rate)
       ROS_INFO ("Waiting for %.4f seconds", *wait);
       ros::WallDuration(*wait).sleep();
       ROS_INFO ("Would now publish message with stamp %.4f", t);
+      if (state.pose)
+        publishBasePose(*state.pose);
     }
   }
 }
@@ -210,12 +184,12 @@ int main (int argc, char** argv)
   po::options_description desc("Allowed options");
   string hostname;
   int port;
-  string start_time, end_time;
+  time_t start_time, end_time;
 
   desc.add_options()
     ("help,h", "Display help message")
-    ("start_time,s", po::value<string>(&start_time), "Start time (HH:MM:SS)")
-    ("end_time,e", po::value<string>(&end_time), "End time (HH:MM:SS)")
+    ("start_time,s", po::value<time_t>(&start_time), "Start time")
+    ("end_time,e", po::value<time_t>(&end_time), "End time")
     ("hostname,z", po::value<string>(&hostname)->default_value("localhost"),
      "Hostname for db server.  Defaults to localhost")
     ("port,p", po::value<int>(&port)->default_value(27017),
@@ -231,9 +205,11 @@ int main (int argc, char** argv)
   }
 
   // Parse times
+  /*
   time_t t1 = 1335820120; //parseTime(start_time);
   time_t t2 = 1335900000; //parseTime(end_time);
+  */
   ros_logging::Node node(hostname, port);
-  node.replay(t1, t2, 3.0);
+  node.replay(start_time, end_time, 3.0);
   return 0;
 }

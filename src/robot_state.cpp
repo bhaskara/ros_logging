@@ -31,40 +31,68 @@
 /**
  * \file 
  * 
- * Defines RobotState struct
+ * Implementation of robot_state.h
  *
  * \author Bhaskara Marthi
  */
 
-#include <sensor_msgs/JointState.h>
-#include <geometry_msgs/Pose.h>
-#include <mongo/client/dbclient.h>
+#include "robot_state.h"
+#include <tf/transform_datatypes.h>
 
 namespace ros_logging
 {
 
-namespace sm=sensor_msgs;
-namespace gm=geometry_msgs;
+using std::cerr;
+using std::endl;
+using std::cout;
 
-// Represents what we know about the robot joints and base position
-// at a particular time point.
-struct RobotState
+using std::vector;
+
+using mongo::BSONElement;
+using mongo::BSONObj;
+
+bool RobotState::isEmpty() const
 {
-  RobotState (sm::JointState::ConstPtr js, gm::Pose::ConstPtr pose) :
-    joint_state(js), pose(pose)
-  {}
-
-  RobotState ()
-  {}
-
-  bool isEmpty() const;
-  void update (mongo::BSONObj b);
-
-  sm::JointState::ConstPtr joint_state;
-  gm::Pose::ConstPtr pose;
-};
+  return !(joint_state.get());
+}
 
 
+gm::Pose::ConstPtr getPose (mongo::BSONObj b)
+{
+  BSONElement elt = b.getField("pose");
+  cerr << "Processing " << elt.toString() << endl;
+  if (elt.eoo())
+    return gm::Pose::ConstPtr();
+  else
+  {
+    vector<BSONElement> p = elt.Array();
+    const double x = p[0].Double();
+    const double y = p[1].Double();
+    const double th = p[2].Double();
+    cerr << "Has pose (" << x << ", " << y << ", " << th << ")\n";
+    gm::Pose::Ptr pose(new gm::Pose());
+    pose->position.x = x;
+    pose->position.y = y;
+    pose->orientation = tf::createQuaternionMsgFromYaw(th);
+    return pose;
+  }
+}
 
+// Update given a BSONObj representing diffs
+void RobotState::update(BSONObj b)
+{
+  if (!b.getField("pose_diff").eoo())
+    pose = getPose(b);
+  if (isEmpty())
+  {
+    //joint_state.initialize();
+  }
+  /*
+  for (size_t i=0; i<b.indices.size(); i++)
+  {
+    joint_state->position[b.indices[i]] = b.positions[i];
+  }
+  */
+}
 
 } // namespace

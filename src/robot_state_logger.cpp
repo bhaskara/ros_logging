@@ -107,6 +107,8 @@ private:
   
   void updateIgnoredJoints (const sm::JointState& s);
   
+  void writeJointNames (const sm::JointState& s);
+  
   ros::NodeHandle nh_;
   boost::mutex mutex_;
 
@@ -116,6 +118,7 @@ private:
   const std::string fixed_frame_;
   vector<bool> joint_ignored_;
   const string diff_coll_;
+  const string joint_name_coll_;
   
   // Distance threshold for considering two joint angles to be the same
   // Note that this isn't quite right due to the existence of translational
@@ -195,6 +198,7 @@ Node::Node () :
   processing_interval_(0.1), keyframe_interval_(60.0),
   base_frame_("base_footprint"), fixed_frame_("map"),
   diff_coll_("ros_logging.robot_state_log"),
+  joint_name_coll_("ros_logging.joint_state_names"),
   distance_threshold_(0.01), conn_(createConnection("localhost", 27017)),
   state_sub_(nh_.subscribe("joint_states", 1, &Node::jointStateCB, this))
 {
@@ -240,11 +244,23 @@ void Node::updateIgnoredJoints (const sm::JointState& m)
   }
 }
 
+void Node::writeJointNames (const sm::JointState& m)
+{
+  BSONArrayBuilder b;
+  BOOST_FOREACH (const string& name, m.name)
+    b.append(name);
+  BSONObj s = BSON("names" << b.arr());
+  conn_->update(joint_name_coll_, mongo::fromjson("{}"), s, 1);
+}
+
 void Node::jointStateCB (sm::JointState::ConstPtr m)
 {
   // The first time round, figure out which joints to ignore
   if (joint_ignored_.size()==0)
+  {
     updateIgnoredJoints(*m);
+    writeJointNames(*m);
+  }
   
   // Only save every so often
   if (ros::Time::now() <= last_processed_+processing_interval_)
