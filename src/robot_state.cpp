@@ -86,18 +86,21 @@ void RobotState::initializeJointState (const vector<string>& names)
   cerr << "Initialized joint state to " << *joint_state << endl;
 }
 
+
 // Update given a BSONObj representing diffs
 void RobotState::update(BSONObj b)
 {
   ROS_ASSERT(!isEmpty());
   if (!b.getField("pose_diff").eoo())
     pose = getPose(b);
-  /*
-  for (size_t i=0; i<b.indices.size(); i++)
-  {
-    joint_state->position[b.indices[i]] = b.positions[i];
-  }
-  */
+  
+  vector<BSONElement> indices = b.getField("indices").Array();
+  vector<BSONElement> positions = b.getField("positions").Array();
+  
+  ROS_ASSERT(indices.size()==positions.size());
+  for (size_t i=0; i<indices.size(); i++)
+    joint_state->position[indices[i].Int()] = positions[i].Double();
 }
+
 
 } // namespace

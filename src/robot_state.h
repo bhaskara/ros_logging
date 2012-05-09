@@ -61,7 +61,7 @@ struct RobotState
   void update (mongo::BSONObj b);
   void initializeJointState (const std::vector<std::string>& names);
 
-  sm::JointState::ConstPtr joint_state;
+  sm::JointState::Ptr joint_state;
   gm::Pose::ConstPtr pose;
 };
 

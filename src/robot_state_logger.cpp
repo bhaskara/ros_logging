@@ -44,7 +44,6 @@
  * \author Bhaskara Marthi
  */
 
-#include "robot_state.h"
 #include <ros/ros.h>
 #include <tf/transform_listener.h>
 #include <boost/foreach.hpp>
@@ -65,10 +64,10 @@ using std::pair;
 using mongo::BSONObj;
 using mongo::BSONObjBuilder;
 using mongo::BSONArrayBuilder;
+using boost::optional;
 
 typedef boost::mutex::scoped_lock Lock;
 typedef boost::shared_ptr<mongo::DBClientConnection> ConnPtr;
-
 
 typedef pair<size_t, float> Diff;
 
@@ -81,9 +80,23 @@ struct Diffs
   // It can be empty if the new pose is unknown (due to tf errors)
   bool pose_diff;
   bool is_keyframe;
-  gm::Pose::ConstPtr new_pose;
+  
+  optional<gm::Pose> new_pose;
 
   Diffs () : pose_diff(false), is_keyframe(false) {}
+};
+
+// Represents what we know about the robot's state at a particular time point.
+// The pose can be null, either because of a temporary tf failure or because
+// the robot is not localized in a map frame.
+struct RobotState
+{
+  RobotState (sm::JointState::ConstPtr js, optional<gm::Pose> pose) :
+    joint_state(js), pose(pose)
+  {}
+
+  sm::JointState::ConstPtr joint_state;
+  optional<gm::Pose> pose;
 };
 
 
@@ -263,7 +276,7 @@ void Node::jointStateCB (sm::JointState::ConstPtr m)
   }
   
   // Only save every so often
-  if (ros::Time::now() <= last_processed_+processing_interval_)
+  if (ros::Time::now() <= last_processed_ + processing_interval_)
     return;
 
   RobotState rs(m, getBasePose(m->header.stamp));
