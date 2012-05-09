@@ -40,7 +40,7 @@ import pymongo.binary as binary
 import time
 import rospy
 import re
-import ros_logging.action_subscriber as sub
+import logging_tools.action_subscriber as sub
 import ros_actions as act
 
 ACTION_TYPE_COLL = 'action_logging_action_types'

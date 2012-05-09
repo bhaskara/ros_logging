@@ -31,68 +31,65 @@
 /**
  * \file 
  * 
- * Defines ResultIterator, an iterator over results of a query
+ * Encapsulates logic for playing back messages at a different rate than
+ * they were recorded
  *
  * \author Bhaskara Marthi
  */
 
-#ifndef ROS_LOGGING_QUERY_RESULTS_H
-#define ROS_LOGGING_QUERY_RESULTS_H
+#ifndef LOGGING_TOOLS_TIME_WARPER_H
+#define LOGGING_TOOLS_TIME_WARPER_H
 
-#include "log_item.h"
-#include <mongo/client/dbclient.h>
 #include <boost/optional.hpp>
+#include <cmath>
 
-namespace ros_logging
+namespace logging_tools
 {
 
-// To avoid some const-correctness issues, we wrap Mongo's returned auto_ptr in
-// another pointer
-typedef auto_ptr<mongo::DBClientCursor> CursorAutoPtr;
-typedef boost::shared_ptr<CursorAutoPtr> CursorPtr;
+using boost::optional;
 
-class ResultIterator :
-    public boost::iterator_facade<ResultIterator,
-                                  LogItem::ConstPtr,
-                                  boost::single_pass_traversal_tag,
-                                  LogItem::ConstPtr>
+
+// We're going to be playing back messages received between t1 and t2, at
+// some rate; we're also going to be skipping messages to ensure that we
+// publish at most one message every inc seconds.  This class wraps all of
+// that logic and related state.
+class TimeWarper
 {
 public:
+  TimeWarper (double playback_start_time, double earliest_receipt_time,
+              double latest_receipt_time, double rate, double inc) :
+    playback_start_time_(playback_start_time),
+    earliest_receipt_time_(earliest_receipt_time),
+    latest_receipt_time_(latest_receipt_time), rate_(rate), inc_(inc),
+    last_ind_(-1)
+  {}
 
-  /// Create an iterator for a query
-  ResultIterator (boost::shared_ptr<mongo::DBClientConnection> conn,
-                  const std::string& message_ns,
-                  const std::string& node_ns,
-                  const std::string& log_ns,
-                  const mongo::Query& query);
-
-  /// Copy constructor.  This has move semantics, so you can't use the
-  /// rhs anymore.
-  ResultIterator (const ResultIterator& rhs);
-
-  /// Default constructor (for a past-the-end iterator)
-  ResultIterator ();
+  // Given a new message with timestamp t, and given current time,
+  // return how long, in seconds, to wait before publishing the message,
+  // or an empty value if the message should be skipped, either because
+  // it's in the same time window as an already published message, or because
+  // it's too late to publish this one.
+  optional<double> waitTime (double t, double now)
+  {
+    const int ind = int(floor((t-earliest_receipt_time_)/(rate_*inc_)));
+    if (ind>last_ind_)
+    {
+      last_ind_ = ind;
+      const double publish_at = playback_start_time_+ind*inc_;
+      if (publish_at > now)
+        return publish_at-now;
+    }
+    return optional<double>();
+  }
 
 private:
-
-  friend class boost::iterator_core_access;
-
-  // Member functions needed to be an iterator
-  void increment();
-  LogItem::ConstPtr dereference() const;
-  bool equal (const ResultIterator& other) const;
-  
-  boost::shared_ptr<mongo::DBClientConnection> conn_;
-  const std::string message_ns_, node_ns_, log_ns_;
-  CursorPtr cursor_;
-  boost::optional<mongo::BSONObj> next_;
-
+  const double playback_start_time_;
+  const double earliest_receipt_time_;
+  const double latest_receipt_time_;
+  const double rate_;
+  const double inc_;
+  int last_ind_;
 };
-
-// A typedef for convenience
-// ResultRange satisfies the single pass range concept
-typedef std::pair<ResultIterator, ResultIterator> ResultRange;
-    
 
 } // namespace
 

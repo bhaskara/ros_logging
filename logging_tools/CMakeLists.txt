@@ -31,30 +31,20 @@ set(ALL_WARNINGS -Wall -Werror -Wextra -Wno-unused-but-set-variable)
 #rosbuild_link_boost(${PROJECT_NAME} thread)
 #rosbuild_add_executable(example examples/example.cpp)
 #target_link_libraries(example ${PROJECT_NAME})
-rosbuild_add_library(ros_logging
+rosbuild_add_library(logging_tools
   src/mongo_logger.cpp
   src/query_results.cpp)
 
 
 rosbuild_add_executable(rosout_logger src/rosout_logger_node.cpp)
-target_link_libraries(rosout_logger ros_logging)
+target_link_libraries(rosout_logger logging_tools)
 
 rosbuild_add_executable(grep_log src/grep_log.cpp)
-target_link_libraries(grep_log ros_logging)
+target_link_libraries(grep_log logging_tools)
 rosbuild_link_boost(grep_log program_options)
 
-rosbuild_add_library(robot_state
-  src/robot_state.cpp)
-
-rosbuild_add_executable(robot_state_logger src/robot_state_logger.cpp)
-target_link_libraries(robot_state_logger robot_state)
-
-rosbuild_add_executable(replay_robot_state src/replay_robot_state.cpp)
-target_link_libraries(replay_robot_state robot_state)
-
 set(TARGETS
-  ros_logging rosout_logger grep_log robot_state robot_state_logger
-  replay_robot_state)
+  logging_tools rosout_logger grep_log )
 
 foreach(target ${TARGETS})
   rosbuild_add_compile_flags(${target} ${ALL_WARNINGS})

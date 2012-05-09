@@ -57,7 +57,7 @@ using boost::optional;
 
 typedef boost::shared_ptr<mongo::DBClientConnection> ConnPtr;
 
-namespace ros_logging
+namespace logging_tools
 {
 
 
@@ -230,7 +230,7 @@ int main (int argc, char** argv)
   time_t t1 = 1335820120; //parseTime(start_time);
   time_t t2 = 1335900000; //parseTime(end_time);
   */
-  ros_logging::Node node(hostname, port);
+  logging_tools::Node node(hostname, port);
   node.replay(start_time, end_time, 3.0);
   return 0;
 }

@@ -37,12 +37,12 @@
 # Search the db for actions
 
 import roslib
-roslib.load_manifest('ros_logging')
+roslib.load_manifest('logging_tools')
 import argparse
 import sys
 import pymongo
 import time
-import ros_logging.ros_actions as act
+import logging_tools.ros_actions as act
 from actionlib_msgs.msg import GoalStatus
 import re
 import datetime as dt

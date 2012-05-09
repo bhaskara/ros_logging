@@ -31,76 +31,69 @@
 /**
  * \file 
  * 
- * Implementation of robot_state.h
+ * Ros node that logs rosout messages to db
  *
  * \author Bhaskara Marthi
  */
 
-#include "robot_state.h"
-#include <tf/transform_datatypes.h>
+#include <logging_tools/mongo_logger.h>
+#include <ros/ros.h>
 
-namespace ros_logging
+namespace logging_tools
 {
 
-using std::cerr;
-using std::endl;
-using std::cout;
+using rosgraph_msgs::Log;
 
-using std::vector;
-using std::string;
-
-using mongo::BSONElement;
-using mongo::BSONObj;
-
-bool RobotState::isEmpty() const
+class Node
 {
-  return !(joint_state.get());
-}
+public:
 
-
-gm::Pose::ConstPtr getPose (mongo::BSONObj b)
-{
-  BSONElement elt = b.getField("pose");
-  cerr << "Processing " << elt.toString() << endl;
-  if (elt.eoo())
-    return gm::Pose::ConstPtr();
-  else
-  {
-    vector<BSONElement> p = elt.Array();
-    const double x = p[0].Double();
-    const double y = p[1].Double();
-    const double th = p[2].Double();
-    gm::Pose::Ptr pose(new gm::Pose());
-    pose->position.x = x;
-    pose->position.y = y;
-    pose->orientation = tf::createQuaternionMsgFromYaw(th);
-    return pose;
-  }
-}
-
-void RobotState::initializeJointState (const vector<string>& names)
-{
-  sm::JointState js;
-  js.name = names;
-  joint_state.reset(new sm::JointState(js));
-  cerr << "Initialized joint state to " << *joint_state << endl;
-}
-
-
-// Update given a BSONObj representing diffs
-void RobotState::update(BSONObj b)
-{
-  ROS_ASSERT(!isEmpty());
-  if (!b.getField("pose_diff").eoo())
-    pose = getPose(b);
+  Node ();
   
-  vector<BSONElement> indices = b.getField("indices").Array();
-  vector<BSONElement> positions = b.getField("positions").Array();
-  
-  ROS_ASSERT(indices.size()==positions.size());
-  for (size_t i=0; i<indices.size(); i++)
-    joint_state->position[indices[i].Int()] = positions[i].Double();
-}
+  void logCB (const Log& l);
 
+private:
+  
+  ros::NodeHandle nh_;
+  
+  MongoLogger logger_;
+  ros::Subscriber sub_;
+};
+
+
+// Constructor sets up the db connection and subscription
+Node::Node () :
+  logger_("ros_logging"), sub_(nh_.subscribe("rosout_agg", 1000,
+                                             &Node::logCB, this))
+{}
+
+void Node::logCB (const Log& l)
+{
+  logger_.write(l, ros::WallTime::now());
+}
 
 } // namespace
+
+using std::cerr;
+
+int main (int argc, char** argv)
+{
+  ros::init(argc, argv, "rosout_logger_node");
+  ros::NodeHandle nh; // Otherwise the ros::ok will fail on iteration 2
+  while (ros::ok())
+  {
+    try
+    {
+      logging_tools::Node node;
+      cerr << "Connected to db instance\n";
+      ros::spin();
+      break;
+    }
+    catch (mongo::ConnectException& e)
+    {
+      cerr << "Waiting for db connection\n";
+      ros::WallDuration(1.0).sleep();
+    }
+  }
+  return 0;
+}

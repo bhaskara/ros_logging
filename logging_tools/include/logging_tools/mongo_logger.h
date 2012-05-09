@@ -36,14 +36,14 @@
  * \author Bhaskara Marthi
  */
 
-#ifndef ROS_LOGGING_MONGO_LOGGER_H
-#define ROS_LOGGING_MONGO_LOGGER_H
+#ifndef LOGGING_TOOLS_MONGO_LOGGER_H
+#define LOGGING_TOOLS_MONGO_LOGGER_H
 
 #include "log_item.h"
 #include "query_results.h"
 #include <boost/shared_ptr.hpp>
 
-namespace ros_logging
+namespace logging_tools
 {
 
 

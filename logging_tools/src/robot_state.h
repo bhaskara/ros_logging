@@ -40,7 +40,7 @@
 #include <geometry_msgs/Pose.h>
 #include <mongo/client/dbclient.h>
 
-namespace ros_logging
+namespace logging_tools
 {
 
 namespace sm=sensor_msgs;

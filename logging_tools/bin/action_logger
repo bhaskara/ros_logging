@@ -37,7 +37,7 @@
 # Log ros actions to a db
 
 import roslib
-roslib.load_manifest('ros_logging')
+roslib.load_manifest('logging_tools')
 
 import rospy
 import pymongo as pm
@@ -45,7 +45,7 @@ import sys
 import os
 import xmlrpclib
 import time
-import ros_logging.action_logger as act
+import logging_tools.action_logger as act
 
 DB_PORT=27017
 DB_NAME='ros_logging'

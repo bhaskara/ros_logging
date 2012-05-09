@@ -36,7 +36,7 @@
  * \author Bhaskara Marthi
  */
 
-#include <ros_logging/mongo_logger.h>
+#include <logging_tools/mongo_logger.h>
 #include <ros/ros.h>
 #include <boost/foreach.hpp>
 #include <boost/algorithm/string.hpp>
@@ -52,8 +52,8 @@ using std::cout;
 using std::endl;
 using std::string;
 using std::set;
-using ros_logging::LogItem;
-using ros_logging::MongoLogger;
+using logging_tools::LogItem;
+using logging_tools::MongoLogger;
 using boost::algorithm::trim_copy;
 namespace po=boost::program_options;
 

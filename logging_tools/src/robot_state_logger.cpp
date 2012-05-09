@@ -50,7 +50,7 @@
 #include <boost/thread.hpp>
 #include <boost/format.hpp>
 
-namespace ros_logging
+namespace logging_tools
 {
 
 namespace sm=sensor_msgs;
@@ -349,7 +349,7 @@ Diffs Node::getDiffs (const RobotState& last, const RobotState& current)
 int main (int argc, char** argv)
 {
   ros::init(argc, argv, "robot_state_logger");
-  ros_logging::Node node;
+  logging_tools::Node node;
   ros::spin();
   return 0;
 }

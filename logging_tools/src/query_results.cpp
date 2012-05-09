@@ -36,9 +36,9 @@
  * \author Bhaskara Marthi
  */
 
-#include <ros_logging/query_results.h>
+#include <logging_tools/query_results.h>
 
-namespace ros_logging
+namespace logging_tools
 {
 
 using std::string;

@@ -36,12 +36,12 @@
  * \author Bhaskara Marthi
  */
 
-#include <ros_logging/mongo_logger.h>
+#include <logging_tools/mongo_logger.h>
 #include <boost/format.hpp>
 #include <boost/crc.hpp>
 #include <boost/foreach.hpp>
 
-namespace ros_logging
+namespace logging_tools
 {
 
 using std::string;

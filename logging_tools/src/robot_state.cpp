@@ -31,41 +31,76 @@
 /**
  * \file 
  * 
- * Defines the LogItem type
+ * Implementation of robot_state.h
  *
  * \author Bhaskara Marthi
  */
 
-#ifndef ROS_LOGGING_LOG_ITEM_H
-#define ROS_LOGGING_LOG_ITEM_H
+#include "robot_state.h"
+#include <tf/transform_datatypes.h>
 
-#include <rosgraph_msgs/Log.h>
-#include <ros/ros.h>
-
-namespace ros_logging
+namespace logging_tools
 {
 
-struct LogItem
+using std::cerr;
+using std::endl;
+using std::cout;
+
+using std::vector;
+using std::string;
+
+using mongo::BSONElement;
+using mongo::BSONObj;
+
+bool RobotState::isEmpty() const
 {
-  LogItem (rosgraph_msgs::Log::Ptr l,
-           const ros::WallTime& receipt_time) :
-    msg(l), receipt_time(receipt_time)
-  {}
+  return !(joint_state.get());
+}
 
-  LogItem () :
-    msg(new rosgraph_msgs::Log())
-  {}
 
-  rosgraph_msgs::Log::Ptr msg;
-  ros::WallTime receipt_time;
+gm::Pose::ConstPtr getPose (mongo::BSONObj b)
+{
+  BSONElement elt = b.getField("pose");
+  cerr << "Processing " << elt.toString() << endl;
+  if (elt.eoo())
+    return gm::Pose::ConstPtr();
+  else
+  {
+    vector<BSONElement> p = elt.Array();
+    const double x = p[0].Double();
+    const double y = p[1].Double();
+    const double th = p[2].Double();
+    gm::Pose::Ptr pose(new gm::Pose());
+    pose->position.x = x;
+    pose->position.y = y;
+    pose->orientation = tf::createQuaternionMsgFromYaw(th);
+    return pose;
+  }
+}
+
+void RobotState::initializeJointState (const vector<string>& names)
+{
+  sm::JointState js;
+  js.name = names;
+  joint_state.reset(new sm::JointState(js));
+  cerr << "Initialized joint state to " << *joint_state << endl;
+}
+
+
+// Update given a BSONObj representing diffs
+void RobotState::update(BSONObj b)
+{
+  ROS_ASSERT(!isEmpty());
+  if (!b.getField("pose_diff").eoo())
+    pose = getPose(b);
   
-  typedef boost::shared_ptr<LogItem> Ptr;
-  typedef boost::shared_ptr<LogItem const> ConstPtr;
-};
-
-
+  vector<BSONElement> indices = b.getField("indices").Array();
+  vector<BSONElement> positions = b.getField("positions").Array();
+  
+  ROS_ASSERT(indices.size()==positions.size());
+  for (size_t i=0; i<indices.size(); i++)
+    joint_state->position[indices[i].Int()] = positions[i].Double();
+}
 
 
 } // namespace
-
-#endif // include guard

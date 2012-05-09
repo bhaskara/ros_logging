@@ -31,69 +31,41 @@
 /**
  * \file 
  * 
- * Ros node that logs rosout messages to db
+ * Defines the LogItem type
  *
  * \author Bhaskara Marthi
  */
 
-#include <ros_logging/mongo_logger.h>
+#ifndef LOGGING_TOOLS_LOG_ITEM_H
+#define LOGGING_TOOLS_LOG_ITEM_H
+
+#include <rosgraph_msgs/Log.h>
 #include <ros/ros.h>
 
-namespace ros_logging
+namespace logging_tools
 {
 
-using rosgraph_msgs::Log;
-
-class Node
+struct LogItem
 {
-public:
+  LogItem (rosgraph_msgs::Log::Ptr l,
+           const ros::WallTime& receipt_time) :
+    msg(l), receipt_time(receipt_time)
+  {}
 
-  Node ();
-  
-  void logCB (const Log& l);
+  LogItem () :
+    msg(new rosgraph_msgs::Log())
+  {}
 
-private:
+  rosgraph_msgs::Log::Ptr msg;
+  ros::WallTime receipt_time;
   
-  ros::NodeHandle nh_;
-  
-  MongoLogger logger_;
-  ros::Subscriber sub_;
+  typedef boost::shared_ptr<LogItem> Ptr;
+  typedef boost::shared_ptr<LogItem const> ConstPtr;
 };
 
 
-// Constructor sets up the db connection and subscription
-Node::Node () :
-  logger_("ros_logging"), sub_(nh_.subscribe("rosout_agg", 1000,
-                                             &Node::logCB, this))
-{}
 
-void Node::logCB (const Log& l)
-{
-  logger_.write(l, ros::WallTime::now());
-}
 
 } // namespace
 
-using std::cerr;
-
-int main (int argc, char** argv)
-{
-  ros::init(argc, argv, "rosout_logger_node");
-  ros::NodeHandle nh; // Otherwise the ros::ok will fail on iteration 2
-  while (ros::ok())
-  {
-    try
-    {
-      ros_logging::Node node;
-      cerr << "Connected to db instance\n";
-      ros::spin();
-      break;
-    }
-    catch (mongo::ConnectException& e)
-    {
-      cerr << "Waiting for db connection\n";
-      ros::WallDuration(1.0).sleep();
-    }
-  }
-  return 0;
-}
+#endif // include guard

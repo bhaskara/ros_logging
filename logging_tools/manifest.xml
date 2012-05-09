@@ -1,5 +1,5 @@
 <package>
-  <description brief="ros_logging">
+  <description brief="logging_tools">
 
 Library for logging various info about robot execution to a database
 
