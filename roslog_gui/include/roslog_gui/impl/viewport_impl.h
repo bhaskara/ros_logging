@@ -40,9 +40,14 @@
 #define ROSLOG_GUI_VIEWPORT_IMPL_H
 
 #include <iostream>
+#include <boost/format.hpp>
+#include <stdexcept>
 
 namespace roslog_gui
 {
+
+using boost::format;
+using std::range_error;
 
 template <typename Item>
 Viewport<Item>::Viewport (const ItemVec& items, const size_t size,
@@ -55,8 +60,28 @@ Viewport<Item>::Viewport (const ItemVec& items, const size_t size,
 template <typename Item>
 void Viewport<Item>::verifyInvariants()
 {
-  assert(size_>0);
-  assert(start_<items_.size() || (start_==0 && items_.empty()));
+  if (size_==0)
+    throw range_error("Size was zero");
+  if (!(start_<items_.size() || (start_==0 && items_.empty())))
+  {
+    format e("Illegal values %1% and %2% for start and num items");
+    throw range_error((e % start_ % items_.size()).str());
+  }
+}
+
+template <typename Item>
+boost::optional<Item> Viewport<Item>::itemOnRow (const size_t r)
+{
+  if (r>=size_)
+  {
+    format e("Can't get item on row %1% since size is %2%");
+    throw range_error((e % r % size_).str());
+  }
+  const size_t n = r + start_;
+  boost::optional<Item> item;
+  if (n<items_.size())
+    item = items_.at(n);
+  return item;
 }
 
 template <typename Item>
@@ -126,7 +151,8 @@ Rows Viewport<Item>::prepend (const ItemVec& new_items)
 template <typename Item>
 Rows Viewport<Item>::resize (const size_t new_size)
 {
-  assert(new_size>0);
+  if (new_size==0)
+    throw range_error("New size must be positive");
   size_ = new_size;
   verifyInvariants();
   return Rows(0, size_);
@@ -158,8 +184,12 @@ template <typename Item>
 void Viewport<Item>::removeFromEnd (const size_t n)
 {
   const size_t m = items_.size();
-  assert(m>n);
-  assert(m-n>=start_+size_);
+  if (m<start_+size_+n)
+  {
+    format e("Can't remove %1% items from end given start %2%"
+             ", size %3%, and %4% items");
+    throw range_error((e % n % start_ % size_ % m).str());
+  }
   items_.erase(items_.begin()+m-n, items_.end());
   verifyInvariants();
 }
@@ -168,8 +198,11 @@ void Viewport<Item>::removeFromEnd (const size_t n)
 template <typename Item>
 void Viewport<Item>::removeFromBeginning (const size_t n)
 {
-  assert(n<items_.size());
-  assert(n<start_);
+  if (n>=items_.size() || n>=start_)
+  {
+    format e("Can't remove %1% items from end given start %2%, %3% items");
+    throw range_error((e % n % start_ % items_.size()).str());
+  }
   ItemVec new_items(items_.begin()+n, items_.end());
   items_.swap(new_items);
   start_ -= n;

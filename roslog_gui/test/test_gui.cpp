@@ -37,6 +37,7 @@
  */
 
 #include <roslog_gui/viewport.h>
+#include <stdexcept>
 #include <gtest/gtest.h>
 
 typedef std::vector<int> IntVec;
@@ -45,6 +46,7 @@ using std::endl;
 using roslog_gui::Viewport;
 using roslog_gui::Rows;
 using std::ostream;
+using std::range_error;
 
 void verifyState (const Viewport<int>& vp, size_t expected_start,
                   size_t expected_size, size_t expected_begin,
@@ -123,6 +125,8 @@ TEST(TestGui, TestViewport)
   // Create empty viewport
   Viewport<int> vp(IntVec(), 10);
   verifyState(vp, 0, 10, 0, 0);
+  EXPECT_FALSE(vp.itemOnRow(0));
+  EXPECT_THROW(vp.itemOnRow(15), range_error);
   
   // Scrolling the empty viewport never changes it
   EXPECT_EQ(Rows(0, 10), vp.scroll(3));
@@ -145,6 +149,14 @@ TEST(TestGui, TestViewport)
   vp = Viewport<int>(IntVec(), 30);
   EXPECT_EQ(Rows(0, 30), vp.updateItems(squares(15, 35)));
   verifyState(vp, 0, 30, 15, 35);
+  
+  // Check item-on-row
+  EXPECT_EQ(225, vp.itemOnRow(0));
+  EXPECT_EQ(625, vp.itemOnRow(10));
+  EXPECT_THROW(vp.itemOnRow(30), range_error);
+  EXPECT_THROW(vp.itemOnRow(31), range_error);
+  EXPECT_FALSE(vp.itemOnRow(25));
+  
 
   // Since we're looking past the end, adding new items to the end
   // should scroll forward once we reach the end of the screen
@@ -156,7 +168,27 @@ TEST(TestGui, TestViewport)
   // Remove from beginning shouldn't assert
   vp.removeFromBeginning(5);
   verifyState(vp, 10, 30, 20, 60);
+  // Remove too many items from beginning should assert
+  EXPECT_THROW(vp.removeFromBeginning(20), range_error);
+  verifyState(vp, 10, 30, 20, 60);
+
+  // Same for remove from end
+  EXPECT_THROW(vp.removeFromEnd(5), range_error);
+  verifyState(vp, 10, 30, 20, 60);
+  EXPECT_EQ(Rows(0, 30), vp.postpend(squares(60, 80)));
+  verifyState(vp, 30, 30, 20, 80);
   
+  
+  // Resize when looking at end
+  EXPECT_EQ(Rows(0, 40), vp.resize(40));
+  verifyState(vp, 30, 40, 20, 80);
+  EXPECT_EQ(Rows(0, 25), vp.resize(25));
+  verifyState(vp, 30, 25, 20, 80);
+
+  // Postpend shouldn't change view now that we're not looking at end
+  EXPECT_EQ(Rows(0, 0), vp.postpend(squares(80, 90)));
+  verifyState(vp, 30, 25, 20, 90);
+
 }
 
 
