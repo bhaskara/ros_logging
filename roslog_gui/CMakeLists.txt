@@ -28,5 +28,18 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 #rosbuild_link_boost(${PROJECT_NAME} thread)
 #rosbuild_add_executable(example examples/example.cpp)
 #target_link_libraries(example ${PROJECT_NAME})
-rosbuild_add_gtest(test_gui test/test_gui.cpp)
+#rosbuild_add_gtest(test_gui test/test_gui.cpp)
+
+find_package(Qt4 REQUIRED)
+
+set(SOURCES src/rosout_gui.cpp)
+set(HEADERS include/roslog_gui/rosout_gui.h)
+
+QT4_WRAP_CPP(HEADERS_MOC ${HEADERS})
+
+include(${QT_USE_FILE})
+add_definitions(${QT_DEFINITIONS})
+
+rosbuild_add_executable(rosout_gui ${SOURCES} ${HEADERS_MOC})
+target_link_libraries(rosout_gui ${QT_LIBRARIES})
 
