@@ -88,8 +88,11 @@ public:
   // Get item displayed on row I, or empty if there's no item
   boost::optional<Item> itemOnRow (size_t r);
 
-  // Debug
-  void print ();
+  // Accessors (for white-box testing)
+  const ItemVec& getItems() const { return items_; }
+  size_t getStart() const { return start_; }
+  size_t getSize() const { return size_; }
+  
   
 private:
   

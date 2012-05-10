@@ -140,7 +140,14 @@ template <typename Item>
 Rows Viewport<Item>::updateItems (const ItemVec& new_items)
 {
   const double stamp = (items_.size()>0) ? getStamp(items_[0]) : 0.0;
-  start_ = findItem(new_items, stamp);
+  size_t i=0;
+  for (; i<new_items.size() && getStamp(new_items[i])<stamp; i++);
+  if (new_items.empty())
+    start_=0;
+  else if (i==new_items.size())
+    start_=i-1;
+  else
+    start_=i;
   items_ = new_items;
   verifyInvariants();
   return Rows(0, size_);
@@ -167,14 +174,6 @@ void Viewport<Item>::removeFromBeginning (const size_t n)
   items_.swap(new_items);
   start_ -= n;
   verifyInvariants();
-}
-
-// Debug
-template <typename Item>
-void Viewport<Item>::print ()
-{
-  std::cerr << "[Viewport on range [" << start_ << ", " << start_+size_ <<
-    ") among " << items_.size() << " items]\n";
 }
 
 
