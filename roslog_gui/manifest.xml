@@ -1,0 +1,15 @@
+<package>
+  <description brief="roslog_gui">
+
+     roslog_gui
+
+  </description>
+  <author>Bhaskara Marthi</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/roslog_gui</url>
+  <depend package="logging_tools"/>
+
+</package>
+
+
