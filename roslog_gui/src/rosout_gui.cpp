@@ -15,7 +15,7 @@ QString qstring (const format& f)
 
 int DbModel::rowCount (const QModelIndex& parent) const
 {
-  return squares_.size();
+  return doubles_.size();
 }
 
 int DbModel::columnCount (const QModelIndex& parent) const
@@ -33,7 +33,7 @@ QVariant DbModel::headerData (int section, Qt::Orientation orientation,
   if (section==0)
     return QString("Number");
   else
-    return QString("Square");
+    return QString("Double");
   }
   else
   {
@@ -48,55 +48,86 @@ QVariant DbModel::data (const QModelIndex& ind, int role) const
     return QVariant();
   else if (!ind.isValid())
     return QVariant();
-  else if (r>=(int)squares_.size())
+  else if (r>=static_cast<int>(doubles_.size()))
     return QVariant();
   else
   {
-    std::map<int, int>::const_iterator e = squares_.begin();
+    std::map<int, int>::const_iterator e = doubles_.begin();
     advance(e, r);
     return ind.column() ? e->second : e->first;
   }
 }
 
 DbModel::DbModel (QObject* parent) :
-  QAbstractTableModel(parent), row_(0)
+  QAbstractTableModel(parent), begin_(0), row_(0)
 {
-  postpend(0, 50);
+  postpend(40);
 }
 
-void DbModel::postpend (const int a, const int b)
+void DbModel::postpend (const int n)
 {
   const int nr = rowCount(QModelIndex());
-  beginInsertRows(QModelIndex(), nr, nr+b-a);
-  for (int i=a; i<b; i++)
-    squares_[i]=i*i;
+  beginInsertRows(QModelIndex(), nr+begin_, nr+begin_+n-1);
+  for (int i=nr+begin_; i<nr+begin_+n; i++)
+    doubles_[i] = i*2;
   endInsertRows();
+  cerr << "Row count is now " << rowCount(QModelIndex()) << endl;
+  cerr << "Loop vars were " << nr << ", " << begin_ << ", " << n << endl;
 }
 
+void DbModel::prepend (const int n)
+{
+  cerr << "In prepend\n";
+  beginResetModel();
+  for (int i=begin_-n; i<begin_; i++)
+    doubles_[i] = i*2;
+  endResetModel();
+  begin_ -= n;
+  row_ += n;
+}
+
+// This provides a way of telling the model what we're looking at, so that it 
+// can load more items if necessary.  
 void DbModel::setRow (const int r)
 {
   row_ = r;
 }
 
-void DbModel::maybeUpdate ()
+// If the row is close to the end, load some more items
+int DbModel::maybeUpdate ()
 {
-  int s = squares_.size();
+  int s = doubles_.size();
   if (row_+20 > s)
   {
     cerr << "Updating to max row " << s+20 << endl;
-    postpend(s, s+20);
+    postpend(20);
+    return 0;
   }
+  if (row_*4<s)
+  {
+    cerr << "Prepending " << s << " rows\n";
+    prepend(s);
+    return s;
+  }
+  return 0;
 }
 
 
-
+// In a separate thread, periodically load new items as necessary
 void ModelUpdateThread::run()
 {
   while (true)
   {
     QThread::msleep(100.0);
     if (model_)
-      model_->maybeUpdate();
+    {
+      const int dr = model_->maybeUpdate();
+      if (dr>0)
+      {
+      const int r = view_->verticalScrollBar()->value();
+      view_->verticalScrollBar()->setValue(dr+r);
+      }
+    }
   }
 }
   
@@ -108,7 +139,7 @@ MainWindow::MainWindow()
   createStatusBar();
   model_ = new DbModel;
   items_->setModel(model_);
-  updater_ = new ModelUpdateThread(model_);
+  updater_ = new ModelUpdateThread(model_, items_);
   updater_->start();
   
   connect(items_->verticalScrollBar(), SIGNAL(valueChanged(int)), this,
