@@ -36,9 +36,9 @@
  * \author Bhaskara Marthi
  */
 
-#include <roslog_gui/viewport.h>
+#include <ros_monitor/viewport.h>
 
-namespace roslog_gui
+namespace ros_monitor
 {
 
 

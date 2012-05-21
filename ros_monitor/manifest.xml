@@ -1,13 +1,13 @@
 <package>
-  <description brief="roslog_gui">
+  <description brief="ros_monitor">
 
-     roslog_gui
+     ros_monitor
 
   </description>
   <author>Bhaskara Marthi</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
-  <url>http://ros.org/wiki/roslog_gui</url>
+  <url>http://ros.org/wiki/ros_monitor</url>
  <!-- <depend package="logging_tools"/> -->
 
 </package>

@@ -1,4 +1,4 @@
-#include <roslog_gui/rosout_gui.h>
+#include <ros_monitor/rosout_gui.h>
 #include <boost/lexical_cast.hpp>
 #include <boost/format.hpp>
 #include <iostream>

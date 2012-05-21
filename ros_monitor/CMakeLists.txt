@@ -33,7 +33,7 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 find_package(Qt4 REQUIRED)
 
 set(SOURCES src/rosout_gui.cpp)
-set(HEADERS include/roslog_gui/rosout_gui.h)
+set(HEADERS include/ros_monitor/rosout_gui.h)
 
 QT4_WRAP_CPP(HEADERS_MOC ${HEADERS})
 
