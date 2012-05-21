@@ -47,7 +47,7 @@ QVariant DbModel::headerData (int section, Qt::Orientation orientation,
   }
   else
   {
-    return section;
+    return QVariant();
   }
 }
 
@@ -134,19 +134,19 @@ void DbModel::setRow (const int r)
   row_ = r;
 }
 
-void DbModel::prepend (const size_t n)
+int DbModel::prependSince (const ros::WallTime& start)
 {
   lt::MongoLogger::MessageCriteria c;
-  c.min_time = ros::WallTime();
+  c.min_time = start;
   c.max_time = log_items_.empty() ?
     ros::WallTime() :
     (*log_items_.begin())->receipt_time;
-  c.limit_recent = n;
-  lt::ResultRange r = db_.filterMessages(c);
+  lt::ResultRange r = db_.filterMessages(c, true);
   LogItems new_items(r.first, r.second);
   beginResetModel();
   log_items_.insert(log_items_.begin(), new_items.begin(), new_items.end());
   endResetModel();
+  return static_cast<int>(new_items.size());
 }
 
 int DbModel::maybeUpdate ()
@@ -155,6 +155,12 @@ int DbModel::maybeUpdate ()
   return 0;
 }
 
+void MainWindow::updateStartTime (const QDateTime& t)
+{
+  const int r = view_->verticalScrollBar()->value();
+  const int nr = model_->prependSince(ros::WallTime(t.toTime_t()));
+  view_->verticalScrollBar()->setValue(r+nr);
+}
 
 
 // In a separate thread, periodically load new items as necessary
@@ -190,41 +196,56 @@ void MainWindow::update ()
 {
   model_->maybeUpdate();
   if (tail_mode_)
-    items_->scrollToBottom();
+    view_->scrollToBottom();
 }
   
   
 MainWindow::MainWindow() : tail_mode_(true)
 {
-  items_ = new QTableView;
-  setCentralWidget(items_);
+  view_ = new QTableView;
+  setCentralWidget(view_);
   createStatusBar();
   model_ = new DbModel(ros::WallTime::now());
-  items_->setModel(model_);
+  view_->setModel(model_);
   timestamp_display_ = new TimestampDelegate;
-  items_->setItemDelegateForColumn(0, timestamp_display_);
-  items_->horizontalHeader()->setResizeMode(QHeaderView::ResizeToContents);
+  view_->setItemDelegateForColumn(0, timestamp_display_);
+  view_->horizontalHeader()->setResizeMode(QHeaderView::Stretch);
+  
   QToolBar* toolbar = new QToolBar(this);
   tail_button_ = new QRadioButton("Tail messages", toolbar);
   tail_button_->setChecked(true);
   connect(tail_button_, SIGNAL(toggled(bool)), this,
           SLOT(setTailMode(bool)));
   toolbar->addWidget(tail_button_);
+  
+  QDateTime t;
+  t.setTime_t(ros::WallTime::now().toSec());
+  start_time_input_ = new QDateTimeEdit(t, toolbar);
+  connect(start_time_input_, SIGNAL(dateTimeChanged(const QDateTime&)),
+          this, SLOT(updateStartTime(const QDateTime&)));
+  toolbar->addWidget(start_time_input_);
+  
   addToolBar(toolbar);
   updater_ = new ModelUpdateThread(this);
   updater_->start();
   
-  connect(items_->verticalScrollBar(), SIGNAL(valueChanged(int)), this,
+  connect(view_->verticalScrollBar(), SIGNAL(valueChanged(int)), this,
           SLOT(itemsScrolled(int)));
-  connect(items_->verticalScrollBar(), SIGNAL(sliderMoved(int)), this,
+  connect(view_->verticalScrollBar(), SIGNAL(sliderMoved(int)), this,
           SLOT(sliderMoved()));
                                             
+  resize(sizeHint());
 }
 
 
 
 MainWindow::~MainWindow()
 {
+}
+
+QSize MainWindow::sizeHint ()
+{
+  return QSize(640, 400);
 }
 
 void MainWindow::setTailMode (const bool checked)

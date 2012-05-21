@@ -51,7 +51,7 @@ QString TimestampDelegate::displayText (const QVariant& value,
 {
   QDateTime t;
   t.setTime_t(value.toDouble());
-  return t.toString();
+  return t.toString("hh:mm:ss");
 }
 
 } // namespace

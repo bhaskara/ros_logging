@@ -50,8 +50,7 @@ namespace ros_monitor
 // view on demand. 
 //
 // We store a set of rows from the db, and prepend and postpend this set 
-// as necessary, based on what row is currently being viewed, to make it seem 
-// like an infinitely scrollable table
+// as necessary
 class DbModel : public QAbstractTableModel
 {
   Q_OBJECT
@@ -71,6 +70,9 @@ public:
   // Always return 2
   int columnCount (const QModelIndex& parent) const;
   
+  // Fetch older entries
+  int prependSince (const ros::WallTime& t);
+  
 private:
 
   
@@ -85,9 +87,6 @@ private:
   // Fetch new entries 
   int fetchRecent ();
 
-  // Fetch older entries
-  void prepend (size_t n);
-  
   // Fetch up to n new entries at the beginning of the table
   /*
   void prepend (int n);
@@ -119,22 +118,25 @@ public:
   ~MainWindow ();
 
   void update();
+  virtual QSize sizeHint();
 
   
 private slots:
   void itemsScrolled(int i);
   void setTailMode (bool m);
   void sliderMoved ();
+  void updateStartTime(const QDateTime& t);
 
 private:
   
   void createStatusBar();
 
-  QTableView* items_;
+  QTableView* view_;
   DbModel* model_;
   TimestampDelegate* timestamp_display_;
   ModelUpdateThread* updater_;
   QRadioButton* tail_button_;
+  QDateTimeEdit* start_time_input_;
 
   bool tail_mode_;
 };
