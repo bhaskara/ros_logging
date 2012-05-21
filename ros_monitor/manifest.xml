@@ -8,6 +8,7 @@
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/ros_monitor</url>
+  <depend package="logging_tools"/>
  <!-- <depend package="logging_tools"/> -->
 
 </package>

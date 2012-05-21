@@ -32,8 +32,13 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
 find_package(Qt4 REQUIRED)
 
-set(SOURCES src/rosout_gui.cpp)
-set(HEADERS include/ros_monitor/rosout_gui.h)
+set(SOURCES
+  src/rosout_gui.cpp
+  src/display_delegates.cpp)
+
+set(HEADERS
+  include/ros_monitor/rosout_gui.h
+  include/ros_monitor/display_delegates.h)
 
 QT4_WRAP_CPP(HEADERS_MOC ${HEADERS})
 

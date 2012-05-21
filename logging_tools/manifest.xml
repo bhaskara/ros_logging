@@ -17,6 +17,11 @@ Library for logging various info about robot execution to a database
   <depend package="geometry_msgs"/>
   <depend package="tf"/>
   <depend package="robot_state_publisher"/>
+  
+  <export>
+    <cpp cflags="-I${prefix}/include" lflags="-Wl,-rpath,${prefix}/lib -L${prefix}/lib -llogging_tools "/>
+  </export>
+  
 
 </package>
 

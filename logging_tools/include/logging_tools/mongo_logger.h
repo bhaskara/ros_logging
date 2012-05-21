@@ -73,6 +73,9 @@ public:
   /// ignored if they're empty.
   struct MessageCriteria
   {
+    MessageCriteria () :
+      limit_recent(), min_level(0)
+    {}
     ros::WallTime min_time;
     ros::WallTime max_time;
     std::string message_regex;
