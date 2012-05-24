@@ -13,8 +13,11 @@ using std::vector;
 using boost::format;
 using std::cerr;
 using std::endl;
+using boost::optional;
 
+typedef boost::mutex::scoped_lock Lock;
 typedef vector<lt::LogItem::ConstPtr> LogItems;
+
 
 QString qstring (const format& f)
 {
@@ -149,17 +152,14 @@ int DbModel::prependSince (const ros::WallTime& start)
   return static_cast<int>(new_items.size());
 }
 
-int DbModel::maybeUpdate ()
-{
-  fetchRecent();
-  return 0;
-}
 
+// This is supposed to fetch new items from the db.  But to avoid blocking the 
+// gui thread, we just set a variable that causes them to be fetched in the
+// update thread.  
 void MainWindow::updateStartTime (const QDateTime& t)
 {
-  const int r = view_->verticalScrollBar()->value();
-  const int nr = model_->prependSince(ros::WallTime(t.toTime_t()));
-  view_->verticalScrollBar()->setValue(r+nr);
+  Lock l(mutex_);
+  updated_start_time_ = t;
 }
 
 
@@ -170,32 +170,34 @@ void ModelUpdateThread::run()
   {
     QThread::msleep(100.0);
     main_window_->update();
-    /*
-    if (model_)
-    {
-      model_->maybeUpdate();
-      if (tailing_)
-        view_->scrollToBottom();
-      const int row = view_->verticalScrollBar()->value();
-      const int nr = model_->rowCount(QModelIndex());
-      const bool tailing = (row==nr-1);
-      const int dr = model_->maybeUpdate();
-      const int scroll_by = ((dr>=0) || tailing) ? dr : 0;
-      if (scroll_by>0)
-      {
-        const int r = view_->verticalScrollBar()->value();
-        cerr << "Scrolling to " << scroll_by+r << "\n";
-        view_->verticalScrollBar()->setValue(scroll_by+r);
-      }
-    }
-    */
   }
 }
 
 void MainWindow::update ()
 {
-  model_->maybeUpdate();
-  if (tail_mode_)
+  // Fetch new items
+  model_->fetchRecent();
+  
+  // Determine whether the start time has been changed, and if so
+  // take note and atomically reset it
+  optional<QDateTime> new_start;
+  {
+    Lock l(mutex_);
+    new_start = updated_start_time_;
+    updated_start_time_.reset();
+  }
+  
+  // If start time was changed, fetch the old messages and scroll so that the view
+  // doesn't shift
+  if (new_start)
+  {
+    const int r = view_->verticalScrollBar()->value();
+    const int nr = model_->prependSince(ros::WallTime(new_start->toTime_t()));
+    view_->verticalScrollBar()->setValue(r+nr);
+  }
+  
+  // If we're tailing, scroll as new messages come in
+  else if (tail_mode_)
     view_->scrollToBottom();
 }
   

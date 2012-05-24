@@ -42,6 +42,8 @@
 #include <ros_monitor/display_delegates.h>
 #include <QtGui>
 #include <logging_tools/mongo_logger.h>
+#include <boost/thread.hpp>
+#include <boost/optional.hpp>
 
 namespace ros_monitor
 {
@@ -61,8 +63,8 @@ public:
   // Set the row_ field.  This may trigger maybeUpdate below to fetch more data.
   void setRow(int i);
   
-  // Periodically fetch recent data; return amount by which view must be scrolled
-  int maybeUpdate();
+  // Fetch new entries 
+  int fetchRecent ();
 
   // Return the number of rows in the stored table 
   int rowCount (const QModelIndex& parent) const;
@@ -84,9 +86,6 @@ private:
                        int role=Qt::DisplayRole) const;
   
   
-  // Fetch new entries 
-  int fetchRecent ();
-
   // Fetch up to n new entries at the beginning of the table
   /*
   void prepend (int n);
@@ -131,12 +130,14 @@ private:
   
   void createStatusBar();
 
+  boost::mutex mutex_;
   QTableView* view_;
   DbModel* model_;
   TimestampDelegate* timestamp_display_;
   ModelUpdateThread* updater_;
   QRadioButton* tail_button_;
   QDateTimeEdit* start_time_input_;
+  boost::optional<QDateTime> updated_start_time_;
 
   bool tail_mode_;
 };

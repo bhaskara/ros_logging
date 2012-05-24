@@ -51,6 +51,7 @@ using rosgraph_msgs::Log;
 using mongo::BSONObj;
 using mongo::BSONObjBuilder;
 using mongo::BSONArrayBuilder;
+using std::vector;
 
 typedef boost::shared_ptr<mongo::DBClientConnection> ConnPtr;
 
@@ -215,8 +216,8 @@ ResultRange MongoLogger::filterMessages (const MessageCriteria& c,
   BSONObjBuilder sub;
   sub.append("receipt_time", 1);
   BSONObjBuilder sorted_builder;
-  sorted_builder.append("query", builder.obj());
-  sorted_builder.append("orderby", sub.obj());
+  sorted_builder.append("$query", builder.obj());
+  sorted_builder.append("$orderby", sub.obj());
   BSONObj query = sorted_builder.obj();
   if (print_query)
     cerr << "Final query is: " << query.toString() << endl;

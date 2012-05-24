@@ -55,6 +55,10 @@ using std::set;
 using logging_tools::LogItem;
 using logging_tools::MongoLogger;
 using boost::algorithm::trim_copy;
+using std::ios;
+using std::setprecision;
+using std::setfill;
+using std::setw;
 namespace po=boost::program_options;
 
 int writeSessionStart (const double t)

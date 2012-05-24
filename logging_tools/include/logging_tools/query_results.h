@@ -48,7 +48,7 @@ namespace logging_tools
 
 // To avoid some const-correctness issues, we wrap Mongo's returned auto_ptr in
 // another pointer
-typedef auto_ptr<mongo::DBClientCursor> CursorAutoPtr;
+typedef std::auto_ptr<mongo::DBClientCursor> CursorAutoPtr;
 typedef boost::shared_ptr<CursorAutoPtr> CursorPtr;
 
 class ResultIterator :

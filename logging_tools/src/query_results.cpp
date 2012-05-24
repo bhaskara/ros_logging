@@ -90,8 +90,9 @@ LogItem::ConstPtr ResultIterator::dereference() const
   mongo::Query query = QUERY("crc" << crc << "node_id" << node);
   CursorAutoPtr message_cursor = conn_->query(message_ns_, query);
   ROS_ASSERT(message_cursor->more());
+  mongo::Query node_query = QUERY("id" << node);
   CursorAutoPtr node_cursor =
-    conn_->query(node_ns_, QUERY("id" << node));
+    conn_->query(node_ns_, node_query);
   ROS_ASSERT(node_cursor->more());
 
   // Reconstruct the log message
