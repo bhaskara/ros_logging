@@ -51,7 +51,10 @@ class ActionSubscriber(object):
         self.action_type = action_type
         self.goal_class, self.result_class = act.get_classes(pkg, action_type)
         self.action_id = action_id
-        
+        self.coll.ensure_index('_id')
+        self.coll.ensure_index('goal_id')
+        self.coll.ensure_index('action_id')
+        self.coll.ensure_index('time')
         self.lock = threading.Lock()
 
         self.goal_id = None

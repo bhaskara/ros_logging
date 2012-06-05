@@ -60,6 +60,8 @@ class ActionLogger(object):
         self.db = db
         self.master = master
         self.action_type_coll = db[ACTION_TYPE_COLL]
+        self.action_type_coll.ensure_index('name')
+        self.action_type_coll.ensure_index('_id')
 
         # Keep local copy of seen action topics, to reduce querying
         self.actions = {}
