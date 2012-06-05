@@ -107,6 +107,5 @@ class ActionLogger(object):
                 action_id = self.action_type_coll.insert(entry)
 
             # Set up subscription
-            coll_name = 'action_logger_'+name
-            self.actions[name] = sub.ActionSubscriber(name, self.db[ACTION_COLL_NAME],
+            self.actions[name] = sub.ActionSubscriber(name, self.db['actions'],
                                                       pkg, action_type, action_id)

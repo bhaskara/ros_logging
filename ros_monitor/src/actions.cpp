@@ -37,6 +37,7 @@
  */
 
 #include <ros_monitor/actions.h>
+#include <mongo/client/dbclient.h>
 
 namespace ros_monitor
 {
@@ -70,6 +71,7 @@ QVariant ActionModel::headerData (int section, Qt::Orientation orientation,
   {
   case 0:
     return QString("Time");
+
   case 1:
     return QString("Name");
   default:

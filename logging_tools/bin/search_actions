@@ -60,7 +60,7 @@ STATUSES = {GoalStatus.PENDING : 'pending',
 
 DB_NAME='ros_logging'
 ACTION_TYPE_COLL_NAME='action_logging_action_types'
-ACTION_COLL_NAME='action_log'
+ACTION_COLL_NAME='actions'
 
 def format_timestamp(stamp):
     t=dt.datetime.fromtimestamp(stamp)
@@ -98,16 +98,18 @@ def main(argv=sys.argv):
         classes[x['_id']] = act.get_goal_class(x['pkg'], x['type'])
         names[x['_id']] = x['name']
         
-    q = {'goal_time': {'$gte': min_time, '$lte': max_time},
-         'action_id': {'$in': ids}}
+    q = {'time': {'$gte': min_time, '$lte': max_time},
+         'action_id': {'$in': ids}, 'type': 'result'}
     if args.verbose:
         sys.stderr.write("Query: {0}\n".format(q))
     for x in action_coll.find(q):
+        goal_query = {'type': 'goal', 'goal_id': x['goal_id']}
+        goal_item = action_coll.find_one(goal_query)
         msg = classes[x['action_id']]()
-        msg.deserialize(x['blob'])
+        msg.deserialize(goal_item['blob'])
         print("---\nAction: {0}\nGoal time: {1}\nResult time: {2}\nStatus: {3}".\
-              format(names[x['action_id']], format_timestamp(x['goal_time']),
-                     format_timestamp(x['result_time']), STATUSES[x['status']]))
+              format(names[x['action_id']], format_timestamp(goal_item['time']),
+                     format_timestamp(x['time']), STATUSES[x['status']]))
         if not args.omit_goal:
             print(msg)
 

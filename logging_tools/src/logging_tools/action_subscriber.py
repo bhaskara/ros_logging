@@ -55,9 +55,6 @@ class ActionSubscriber(object):
         self.lock = threading.Lock()
 
         self.goal_id = None
-        self.raw = None
-        self.goal_receipt_time = None
-        
         self.goal_sub = rospy.Subscriber(name+'/goal', rospy.AnyMsg,
                                          self.handle_goal)
         self.result_sub = rospy.Subscriber(name+'/result', rospy.AnyMsg,
@@ -65,21 +62,23 @@ class ActionSubscriber(object):
 
 
     def handle_goal(self, raw):
+        print "Received goal"
         with self.lock:
-            self.goal_receipt_time = time.time()
-            self.raw = raw._buff
-            self.msg = self.goal_class()
-            self.msg.deserialize(raw._buff)
+            t = time.time()
+            msg = self.goal_class()
+            msg.deserialize(raw._buff)
 
             # rospy.loginfo("Received goal {0}".format(self.msg))
-            
-            if self.goal_id is not None:
-                rospy.logwarn("Overwriting old goal id {0} with {1}".
-                              format(self.goal_id, self.msg.goal_id.id))
-            self.goal_id = self.msg.goal_id.id
-            # rospy.loginfo("Done handling goal")
+
+            # Write to db
+            item = {'goal_id': msg.goal_id.id, 'blob': binary.Binary(raw._buff),
+                    'type': 'goal', 'time': t,
+                    'action_id': self.action_id}
+            self.coll.insert(item)
+            print "Inserted ", item
 
     def handle_result(self, raw):
+        print "received result"
         with self.lock:
             # Get the message object
             t = time.time()
@@ -87,28 +86,12 @@ class ActionSubscriber(object):
             msg.deserialize(raw._buff)
             # rospy.loginfo("Received result {0}".format(msg))
             
-            # Check it matches the last goal
-            res_id = msg.status.goal_id.id
-            if isinstance(self.goal_id, str) and len(self.goal_id)>0 and\
-                   res_id != self.goal_id:
-                rospy.logwarn("Result id {0} didn't match goal {1}; ignoring".\
-                              format(res_id, self.goal_id))
-                return
-
             # Write to db
-            buff = StringIO()
-            self.msg.goal.serialize(buff)
-            item = {'blob': binary.Binary(buff.getvalue()), 'result_time': t,
-                    'goal_time': self.goal_receipt_time, 'status':
-                    msg.status.status, 'action_id': self.action_id}
+            item = {'type': 'result', 'time': t, 'status': msg.status.status,
+                    'goal_id': msg.status.goal_id.id, 'action_id': self.action_id}
             self.coll.insert(item)
+            print "Inserted ", item
 
-            # Reset state
-            self.goal_id = None
-            self.goal_receipt_time = None
-            self.raw = None
-            self.msg = None
-            
             # rospy.loginfo("Done handling result")
             
 
