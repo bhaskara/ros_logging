@@ -36,78 +36,21 @@
  * \author Bhaskara Marthi
  */
 
-#ifndef ROS_MONITOR_ROSOUT_GUI_H
-#define ROS_MONITOR_ROSOUT_GUI_H
+#ifndef ROS_MONITOR_ROS_MONITOR_H
+#define ROS_MONITOR_ROS_MONITOR_H
 
 #include <ros_monitor/display_delegates.h>
+#include <ros_monitor/rosout_model.h>
+#include <ros_monitor/actions.h>
 #include <QtGui>
-#include <logging_tools/mongo_logger.h>
-#include <boost/thread.hpp>
 #include <boost/optional.hpp>
 
 namespace ros_monitor
 {
 
-// Model that fetches entries from the database and gives them to the
-// view on demand. 
-//
-// We store a set of rows from the db, and prepend and postpend this set 
-// as necessary
-class DbModel : public QAbstractTableModel
-{
-  Q_OBJECT
-
-public:
-  DbModel (const ros::WallTime& start_time, QObject* parent=0);
-
-  // Set the row_ field.  This may trigger maybeUpdate below to fetch more data.
-  void setRow(int i);
-  
-  // Fetch new entries 
-  int fetchRecent ();
-
-  // Return the number of rows in the stored table 
-  int rowCount (const QModelIndex& parent) const;
-  
-  // Always return 2
-  int columnCount (const QModelIndex& parent) const;
-  
-  // Fetch older entries
-  int prependSince (const ros::WallTime& t);
-  
-private:
-
-  
-  // Return the contents of cell i, j
-  QVariant data (const QModelIndex& ind, int role=Qt::DisplayRole) const;
-  
-  // Return header information for the table
-  QVariant headerData (int section, Qt::Orientation orientation,
-                       int role=Qt::DisplayRole) const;
-  
-  
-  // Fetch up to n new entries at the beginning of the table
-  /*
-  void prepend (int n);
-  */
-  
-  logging_tools::MongoLogger db_;
-  
-  // Subset of the db that we have loaded into memory and display using the gui
-  std::vector<logging_tools::LogItem::ConstPtr> log_items_;
-  
-  // We'll fetch messages received after this time
-  ros::WallTime start_time_;
-  
-  // The row that is currently at the top of the window
-  int row_;
-  
-};
-
-class ModelUpdateThread;
-
-// The main application consists of a table view backed by a model, 
-// and a thread that makes the model update itself
+// The main window has tabs for rosout and actions.
+// Each tab has a db model and corresponding view, as well as a toolbar.
+// There are background update threads that fetch new items for each one.
 class MainWindow : public QMainWindow
 {
   Q_OBJECT
@@ -116,10 +59,12 @@ public:
   MainWindow ();
   ~MainWindow ();
 
-  void update();
   virtual QSize sizeHint();
-
   
+  void updateRosout();
+
+  void updateActions();
+                      
 private slots:
   void itemsScrolled(int i);
   void setTailMode (bool m);
@@ -129,17 +74,34 @@ private slots:
 private:
   
   void createStatusBar();
+  
 
   boost::mutex mutex_;
-  QTableView* view_;
-  DbModel* model_;
-  TimestampDelegate* timestamp_display_;
-  ModelUpdateThread* updater_;
+  
+  // Set of tabs
+  QTabWidget* tabs_;
+
+  // The table view for rosout, which is accessed in the update thread
+  QTableView* rosout_view_;
+
+  // Db model for rosout, accessed in the update thread and the scroll slot
+  DbModel* rosout_model_;
+  
+  // The tail mode button for rosout, accessed in the sliderMoved slot
   QRadioButton* tail_button_;
-  QDateTimeEdit* start_time_input_;
+  
+  // Used to communicate to update thread that the start time has been changed
   boost::optional<QDateTime> updated_start_time_;
 
-  bool tail_mode_;
+  // Db model for actions, accessed in the update thread
+  ActionModel* action_model_;
+
+  // Table view for actions, accessed in the update thread
+  QTableView* action_view_;
+
+  // Are we in tail mode, where we scroll with new messages?
+  bool rosout_tail_mode_;
+  
 };
 
 // A thread that causes the model to fetch more rows as required in the
@@ -150,14 +112,42 @@ class ModelUpdateThread : public QThread
 
 public:
   ModelUpdateThread (MainWindow* main_window) :
-    main_window_(main_window)
+    QThread(main_window), main_window_(main_window), done_(false)
   {}
+
+  ~ModelUpdateThread();
+  
   void run ();
 
 private:
 
   MainWindow* main_window_;
+  bool done_;
 };
+
+
+// A thread that causes the action model to fetch more rows as required in the
+// background
+class ActionUpdateThread : public QThread
+{
+  Q_OBJECT
+
+public:
+  ActionUpdateThread (MainWindow* main_window) :
+    QThread(main_window), main_window_(main_window), done_(false)
+  {}
+  
+  ~ActionUpdateThread();
+
+
+  void run ();
+
+private:
+
+  MainWindow* main_window_;
+  bool done_;
+};
+
 
 } // namespace
 
