@@ -57,7 +57,11 @@ void ModelUpdateThread::run()
   while (!done_)
   {
     QThread::msleep(100.0);
-    main_window_->updateRosout();
+    const int scroll = main_window_->updateRosout();
+    if (scroll ==-1)
+      emit signalScrollBottom();
+    else if (scroll > 0)
+      emit signalScroll(scroll);
   }
 }
 
@@ -68,22 +72,25 @@ void ActionUpdateThread::run()
   while (!done_)
   {
     QThread::msleep(1000.0);
-    main_window_->updateActions();
+    const int scroll = main_window_->updateActions();
+    if (scroll == -1)
+      emit signalScrollBottom();
+    else if (scroll>0)
+      emit signalScroll(scroll);
   }
 }
 
 
-void MainWindow::updateActions()
+int MainWindow::updateActions()
 {
   // Fetch new items
   action_model_->fetchRecent();
 
-  // For now we're always tailing
-  action_view_->scrollToBottom();
+  return -1;
 }
 
 
-void MainWindow::updateRosout()
+int MainWindow::updateRosout()
 {
   // Fetch new items
   rosout_model_->fetchRecent();
@@ -100,15 +107,14 @@ void MainWindow::updateRosout()
   // If start time was changed, fetch the old messages and scroll so that the view
   // doesn't shift
   if (new_start)
-  {
-    const int r = rosout_view_->verticalScrollBar()->value();
-    const int nr = rosout_model_->prependSince(ros::WallTime(new_start->toTime_t()));
-    rosout_view_->verticalScrollBar()->setValue(r+nr);
-  }
+    return rosout_model_->prependSince(ros::WallTime(new_start->toTime_t()));
   
   // If we're tailing, scroll as new messages come in
   else if (rosout_tail_mode_)
-    rosout_view_->scrollToBottom();
+    return -1;
+
+  // Otherwise we don't scroll
+  return 0;
 }
   
   
@@ -150,6 +156,10 @@ MainWindow::MainWindow() : rosout_tail_mode_(true)
   
   // Update thread for rosout
   ModelUpdateThread* rosout_updater = new ModelUpdateThread(this);
+  connect(rosout_updater, SIGNAL(signalScroll(int)), this,
+          SLOT(scrollRosoutView(int)));
+  connect(rosout_updater, SIGNAL(signalScrollBottom()), rosout_view_,
+          SLOT(scrollToBottom()));
   rosout_updater->start();
   
   connect(rosout_view_->verticalScrollBar(), SIGNAL(valueChanged(int)), this,
@@ -176,6 +186,10 @@ MainWindow::MainWindow() : rosout_tail_mode_(true)
   
   // Action view update thread
   ActionUpdateThread* action_updater = new ActionUpdateThread(this);
+  connect(action_updater, SIGNAL(signalScroll(int)), this,
+          SLOT(scrollActionView(int)));
+  connect(action_updater, SIGNAL(signalScrollBottom()), action_view_,
+          SLOT(scrollToBottom()));
   action_updater->start();
                                               
   resize(sizeHint());
@@ -190,6 +204,18 @@ MainWindow::~MainWindow()
 QSize MainWindow::sizeHint ()
 {
   return QSize(800, 600);
+}
+
+void MainWindow::scrollActionView (int nr)
+{
+  const int r = action_view_->verticalScrollBar()->value();
+  action_view_->verticalScrollBar()->setValue(r+nr);
+}
+
+void MainWindow::scrollRosoutView (int nr)
+{
+  const int r = rosout_view_->verticalScrollBar()->value();
+  rosout_view_->verticalScrollBar()->setValue(r+nr);
 }
 
 void MainWindow::setTailMode (const bool checked)

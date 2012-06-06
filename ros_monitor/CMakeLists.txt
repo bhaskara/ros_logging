@@ -51,4 +51,4 @@ add_definitions(${QT_DEFINITIONS})
 
 rosbuild_add_executable(ros_monitor ${SOURCES} ${HEADERS_MOC})
 target_link_libraries(ros_monitor ${QT_LIBRARIES})
-
+target_link_libraries(ros_monitor boost_system)

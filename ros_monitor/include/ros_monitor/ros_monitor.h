@@ -61,15 +61,21 @@ public:
 
   virtual QSize sizeHint();
   
-  void updateRosout();
-
-  void updateActions();
+  // In separate thread, load new items as necessary
+  // Return -1 if need to scroll to bottom, positive integer if need to scroll
+  // down, 0 otherwise
+  int updateRosout();
+  
+  // In separate thread, load new actions.  Return value as above.
+  int updateActions();
                       
 private slots:
   void itemsScrolled(int i);
   void setTailMode (bool m);
   void sliderMoved ();
   void updateStartTime(const QDateTime& t);
+  void scrollRosoutView (int nr);
+  void scrollActionView (int nr);
 
 private:
   
@@ -118,6 +124,11 @@ public:
   ~ModelUpdateThread();
   
   void run ();
+  
+signals:
+
+  void signalScrollBottom ();
+  void signalScroll(int scroll);
 
 private:
 
@@ -141,6 +152,11 @@ public:
 
 
   void run ();
+  
+signals:
+
+  void signalScrollBottom();
+  void signalScroll (int scroll);
 
 private:
 

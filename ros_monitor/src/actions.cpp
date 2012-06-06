@@ -42,7 +42,10 @@
 namespace ros_monitor
 {
 
+using std::string;
 typedef std::vector<Action::ConstPtr> Actions;
+using std::cerr;
+using std::endl;
 
 int ActionModel::rowCount (const QModelIndex& parent) const
 {
@@ -54,9 +57,23 @@ int ActionModel::columnCount (const QModelIndex& parent) const
   return 3;
 }
 
+typedef boost::shared_ptr<mongo::DBClientConnection> ConnPtr;
+
+// Internal function to connect to the mongo instance
+// Can throw a Mongo exception if connection fails
+ConnPtr createConnection (const string& host, const unsigned port)
+{
+  const string address = (boost::format("%1%:%2%") % host % port).str();
+  ConnPtr conn(new mongo::DBClientConnection());
+  conn->connect(address);
+  return conn;
+}
+
+
 ActionModel::ActionModel (const ros::WallTime& start_time,
                           QObject* parent) :
-  QAbstractTableModel(parent)
+  QAbstractTableModel(parent), start_time_(start_time.toSec()),
+  conn_(createConnection("localhost", 27017))
 {}
 
 QVariant ActionModel::headerData (int section, Qt::Orientation orientation,
@@ -80,7 +97,7 @@ QVariant ActionModel::headerData (int section, Qt::Orientation orientation,
 }
 
 
-typedef std::map<Event, std::string> EventNames;
+typedef std::map<Event, string> EventNames;
 
 EventNames initializeEventNames ()
 {
@@ -123,11 +140,43 @@ QVariant ActionModel::data (const QModelIndex& ind, const int role) const
 // Fetch recent items
 int ActionModel::fetchRecent ()
 {
-  // Todo actually fetch
+  const double min_time = actions_.empty() ? start_time_ :
+    actions_.back()->time.toSec()+1e-8;
+  boost::format query_fmt("{ time: {$gt : %.9f} }");
+  const std::string query_string = (query_fmt % min_time).str();
+  //cerr << "Action query is " << query_string << endl;
+  mongo::Query q = mongo::fromjson(query_string);
+  std::auto_ptr<mongo::DBClientCursor> cursor = conn_->query("ros_logging.actions", q);
   Actions new_items;
-  for (unsigned i=0; i<2; i++)
+  const string goal_name("goal");
+  while (cursor->more())
   {
-    Action::ConstPtr a(new Action(ros::WallTime(42.4242), "foo", SUCCEEDED));
+    mongo::BSONObj item = cursor->next();
+    const ros::WallTime t(item.getField("time").Double());
+    Event e;
+    if (item.getStringField("type")==goal_name)
+      e = GOAL;
+    else
+    {
+      const int s = item.getIntField("status");
+      if (s==2)
+        e = PREEMPTED;
+      else if (s==3)
+        e = SUCCEEDED;
+      else
+        e = ABORTED;
+      
+    }
+      
+    mongo::OID action_id = item.getField("action_id").OID();
+    mongo::Query q2 = BSON("_id" << action_id);
+    //cerr << "About to do query " << q2.toString() << endl;
+    std::auto_ptr<mongo::DBClientCursor> c2 =
+      conn_->query("ros_logging.action_logging_action_types", q2);
+    
+    mongo::BSONObj b = c2->next();
+    const string name = b.getStringField("name");
+    Action::Ptr a(new Action(t, name, e));
     new_items.push_back(a);
   }
   

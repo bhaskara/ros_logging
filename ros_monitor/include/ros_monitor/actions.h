@@ -39,6 +39,7 @@
 #include <QtGui>
 #include <boost/shared_ptr.hpp>
 #include <ros/ros.h>
+#include <mongo/client/dbclient.h>
 
 #ifndef ROS_MONITOR_ACTIONS_H
 #define ROS_MONITOR_ACTIONS_H
@@ -53,12 +54,16 @@ struct Action
   Action (const ros::WallTime& t, const std::string& name,
           const Event event) : time(t), name(name), event(event)
   {}
+
+  Action ()
+  {}
   
   ros::WallTime time;
   std::string name;
   Event event;
   
   typedef boost::shared_ptr<const Action> ConstPtr;
+  typedef boost::shared_ptr<Action> Ptr;
 };
 
 class ActionModel : public QAbstractTableModel
@@ -87,6 +92,10 @@ private:
                        int role=Qt::DisplayRole) const;
   
   std::vector<Action::ConstPtr> actions_;
+  
+  double start_time_;
+
+  boost::shared_ptr<mongo::DBClientConnection> conn_;
   
 };
 

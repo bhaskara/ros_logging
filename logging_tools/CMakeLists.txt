@@ -34,6 +34,8 @@ set(ALL_WARNINGS -Wall -Werror -Wextra -Wno-unused-but-set-variable)
 rosbuild_add_library(logging_tools
   src/mongo_logger.cpp
   src/query_results.cpp)
+target_link_libraries(logging_tools boost_system)
+
 
 
 rosbuild_add_executable(rosout_logger src/rosout_logger_node.cpp)
