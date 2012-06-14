@@ -134,23 +134,28 @@ MainWindow::MainWindow() : rosout_tail_mode_(true)
   rosout_view_->setItemDelegateForColumn(0, timestamp_display);
   rosout_view_->horizontalHeader()->setResizeMode(QHeaderView::Stretch);
   
-  // Rosout toolbar
-  QToolBar* rosout_toolbar = new QToolBar;
-  tail_button_ = new QRadioButton("Tail messages", rosout_toolbar);
+  // Rosout controls
+  QWidget* rosout_controls = new QWidget(rosout_view_);
+  QFormLayout* rosout_controls_layout = new QFormLayout(rosout_controls);
+  tail_button_ = new QRadioButton("Tail messages", rosout_controls);
   tail_button_->setChecked(true);
   connect(tail_button_, SIGNAL(toggled(bool)), this,
           SLOT(setTailMode(bool)));
-  rosout_toolbar->addWidget(tail_button_);
+  rosout_controls_layout->addRow(tail_button_);
   QDateTime t;
   t.setTime_t(ros::WallTime::now().toSec());
-  QDateTimeEdit* start_time_input = new QDateTimeEdit(t, rosout_toolbar);
+  QDateTimeEdit* start_time_input = new QDateTimeEdit(t, rosout_controls);
   connect(start_time_input, SIGNAL(dateTimeChanged(const QDateTime&)),
           this, SLOT(updateStartTime(const QDateTime&)));
-  rosout_toolbar->addWidget(start_time_input);
+  rosout_controls_layout->addRow(tr("Show messages since:"), start_time_input);
+  QLineEdit* message_regex = new QLineEdit(rosout_controls);
+  rosout_controls_layout->addRow(tr("Message regex:"), message_regex);
+  QLineEdit* node_regex = new QLineEdit(rosout_controls);
+  rosout_controls_layout->addRow(tr("Node regex:"), node_regex);
 
   // Rosout vertical layout
   QVBoxLayout* rosout_layout = new QVBoxLayout(rosout_tab);
-  rosout_layout->addWidget(rosout_toolbar);
+  rosout_layout->addWidget(rosout_controls);
   rosout_layout->addWidget(rosout_view_);
   rosout_tab->setLayout(rosout_layout);
   
